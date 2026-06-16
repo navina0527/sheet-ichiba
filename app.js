@@ -16,6 +16,8 @@ let allProducts = [];
 let activeCategory = "すべて";
 let currentSearchTerm = "";
 let stripeStatusChecking = false;
+let selectedProduct = null;
+let checkoutStarting = false;
 
 function showMessage(message, duration = 3200){
   const toast = document.getElementById("toast");
@@ -97,7 +99,7 @@ function renderProducts(){
 
   grid.querySelectorAll(".product-card").forEach(card => {
     card.addEventListener("click", () => {
-      showMessage("商品詳細・購入機能は次の段階で追加します。");
+      openProductDetail(card.dataset.productId);
     });
   });
 }
@@ -110,6 +112,7 @@ async function loadProducts(){
     .from("products")
     .select(`
       id,
+      seller_id,
       title,
       description,
       category,
@@ -370,6 +373,153 @@ function refreshAuthUI(session){
   setStripeUI();
 }
 
+
+
+function findProductById(productId){
+  return allProducts.find(product => product.id === productId) || null;
+}
+
+function openProductDetail(productId){
+  const product = findProductById(productId);
+
+  if(!product){
+    showMessage("商品情報を取得できませんでした。");
+    return;
+  }
+
+  selectedProduct = product;
+
+  const previewWrap = document.getElementById("detailPreviewWrap");
+  const imageUrl = getPreviewUrl(product.preview_image_path);
+
+  previewWrap.innerHTML = imageUrl
+    ? `<img class="detail-preview-image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.title)}のプレビュー画像">`
+    : `<div class="detail-preview-placeholder">${escapeHtml(product.title)}</div>`;
+
+  document.getElementById("detailCategory").textContent = product.category;
+  document.getElementById("detailTitle").textContent = product.title;
+  document.getElementById("detailDescription").textContent = product.description;
+  document.getElementById("detailSeller").textContent =
+    product.profiles?.display_name || "出品者";
+  document.getElementById("detailPrice").textContent = formatPrice(product.price_jpy);
+
+  const buyButton = document.getElementById("detailBuyButton");
+  const note = document.getElementById("detailPurchaseNote");
+  const isOwnProduct = currentSession?.user?.id === product.seller_id;
+  const isFree = Number(product.price_jpy) === 0;
+
+  buyButton.classList.toggle("own-product", Boolean(isOwnProduct));
+  buyButton.disabled = false;
+
+  if(isOwnProduct){
+    buyButton.textContent = "自分の商品です";
+    buyButton.disabled = true;
+    note.textContent = "自分で出品した商品は購入できません。";
+  }else if(isFree){
+    buyButton.textContent = "無料で取得";
+    buyButton.disabled = true;
+    note.textContent = "無料商品の取得機能は次の段階で追加します。";
+  }else if(!currentSession?.user){
+    buyButton.textContent = "ログインして購入";
+    note.textContent = "購入にはログインが必要です。";
+  }else{
+    buyButton.textContent = "購入する";
+    note.textContent = "決済はStripeのテスト画面で行います。";
+  }
+
+  const modal = document.getElementById("productDetailModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+}
+
+function closeProductDetail(){
+  const modal = document.getElementById("productDetailModal");
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+  selectedProduct = null;
+}
+
+async function invokeCreateCheckout(productId){
+  const { data, error } = await supabaseClient.functions.invoke("create-checkout", {
+    body: { productId }
+  });
+
+  if(error){
+    let message = error.message || "購入処理を呼び出せませんでした。";
+    try{
+      const contextBody = await error.context?.json();
+      if(contextBody?.error) message = contextBody.error;
+    }catch(_ignored){}
+    throw new Error(message);
+  }
+
+  if(data?.error){
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+async function startCheckout(){
+  if(!selectedProduct || checkoutStarting) return;
+
+  if(!currentSession?.user){
+    closeProductDetail();
+    showMessage("購入するにはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  if(currentSession.user.id === selectedProduct.seller_id){
+    showMessage("自分の商品は購入できません。");
+    return;
+  }
+
+  checkoutStarting = true;
+  const button = document.getElementById("detailBuyButton");
+  button.disabled = true;
+  button.textContent = "決済画面を準備中…";
+
+  try{
+    const data = await invokeCreateCheckout(selectedProduct.id);
+
+    if(!data?.url){
+      throw new Error("Stripeの決済URLを取得できませんでした。");
+    }
+
+    window.location.assign(data.url);
+  }catch(error){
+    console.error("Checkout start error:", error);
+    showMessage(`購入画面を開けませんでした：${error.message}`, 7000);
+    button.disabled = false;
+    button.textContent = "購入する";
+    checkoutStarting = false;
+  }
+}
+
+function handleCheckoutReturn(){
+  const params = new URLSearchParams(window.location.search);
+  const checkoutResult = params.get("checkout");
+
+  if(!checkoutResult) return;
+
+  const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+  window.history.replaceState({}, document.title, cleanUrl);
+
+  if(checkoutResult === "cancel"){
+    showMessage("購入をキャンセルしました。", 5000);
+    return;
+  }
+
+  if(checkoutResult === "success"){
+    showMessage(
+      "テスト決済から戻りました。購入確定とダウンロード処理を次に接続します。",
+      7000
+    );
+  }
+}
 
 function setStripeUI(state = {}){
   const headerButton = document.getElementById("stripeConnectButton");
@@ -735,6 +885,7 @@ document.addEventListener("keydown", event => {
   if(event.key === "Escape"){
     closeAuthModal();
     closeProductModal();
+    closeProductDetail();
   }
 });
 
@@ -757,6 +908,8 @@ document.addEventListener("keydown", event => {
       setTimeout(() => checkStripeStatus(false), 0);
     }
   });
+
+  handleCheckoutReturn();
 
   if(currentSession?.user){
     await handleStripeRedirect();

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
   <header class="site-header">
@@ -171,6 +171,40 @@
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
 
+  <div id="productDetailModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeProductDetail()"></div>
+    <div class="modal-card product-detail-card" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeProductDetail()">×</button>
+
+      <div id="detailPreviewWrap" class="detail-preview-wrap"></div>
+
+      <div class="detail-content">
+        <span id="detailCategory" class="tag"></span>
+        <h2 id="detailTitle" class="detail-title"></h2>
+        <p id="detailDescription" class="detail-description"></p>
+
+        <div class="detail-info-row">
+          <span>出品者</span>
+          <strong id="detailSeller"></strong>
+        </div>
+
+        <div class="detail-purchase-row">
+          <div>
+            <span class="detail-price-label">販売価格</span>
+            <strong id="detailPrice" class="detail-price"></strong>
+          </div>
+          <button id="detailBuyButton" class="btn btn-primary detail-buy-button" type="button" onclick="startCheckout()">
+            購入する
+          </button>
+        </div>
+
+        <p id="detailPurchaseNote" class="detail-purchase-note">
+          決済はStripeのテスト画面で行います。
+        </p>
+      </div>
+    </div>
+  </div>
+
   <div id="productModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeProductModal()"></div>
     <div class="modal-card product-modal-card" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
@@ -279,7 +313,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="config.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
