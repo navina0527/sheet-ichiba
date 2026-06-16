@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="便利なExcelを売れる・買える、Excelテンプレート専門マーケット。" />
+  <title>シート市場｜便利なExcel、売れる。買える。</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#">
+        <span class="brand-mark">S</span>
+        <span>シート市場</span>
+      </a>
+      <nav class="nav">
+        <a href="#products">商品を探す</a>
+        <a href="#sell">出品する</a>
+        <button class="btn btn-ghost" type="button" onclick="showMessage('ログイン機能は次の段階で追加します。')">ログイン</button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <p class="eyebrow">Excelテンプレート専門マーケット</p>
+          <h1>便利なExcel、<br><span>売れる。買える。</span></h1>
+          <p class="hero-copy">
+            仕事や暮らしをラクにするExcelを、必要な人へ。
+            作った表を出品して収入に。欲しかった表は、すぐダウンロード。
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#products">Excelを探す</a>
+            <a class="btn btn-secondary" href="#sell">Excelを出品する</a>
+          </div>
+          <div class="trust-row">
+            <span>✓ すぐダウンロード</span>
+            <span>✓ 出品かんたん</span>
+            <span>✓ 業務別に探せる</span>
+          </div>
+        </div>
+
+        <div class="hero-panel">
+          <div class="sheet-card">
+            <div class="sheet-toolbar">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="sheet-body">
+              <div class="sheet-title">月間売上管理表</div>
+              <div class="sheet-row"><span>売上</span><strong>¥1,280,000</strong></div>
+              <div class="sheet-row"><span>経費</span><strong>¥864,000</strong></div>
+              <div class="sheet-row accent"><span>利益</span><strong>¥416,000</strong></div>
+            </div>
+          </div>
+          <div class="floating-note note-one">在庫管理</div>
+          <div class="floating-note note-two">シフト表</div>
+          <div class="floating-note note-three">収支計算</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="search-section">
+      <div class="container">
+        <div class="search-box">
+          <input id="searchInput" type="search" placeholder="例：売上管理、シフト、在庫、家計簿" />
+          <button class="btn btn-primary" type="button" onclick="searchProducts()">検索</button>
+        </div>
+
+        <div class="categories">
+          <button onclick="filterProducts('すべて')" class="category active">すべて</button>
+          <button onclick="filterProducts('売上・経理')" class="category">売上・経理</button>
+          <button onclick="filterProducts('在庫・発注')" class="category">在庫・発注</button>
+          <button onclick="filterProducts('人事・勤務')" class="category">人事・勤務</button>
+          <button onclick="filterProducts('運送・物流')" class="category">運送・物流</button>
+          <button onclick="filterProducts('暮らし')" class="category">暮らし</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="products" class="products-section">
+      <div class="container">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">PICK UP</p>
+            <h2>便利なExcelを探す</h2>
+          </div>
+          <span id="resultCount" class="result-count">6件の商品</span>
+        </div>
+
+        <div id="productGrid" class="product-grid">
+          <article class="product-card" data-category="売上・経理" data-title="小規模事業者向け 売上・利益管理表">
+            <div class="product-thumb thumb-green">売上・利益<br>管理表</div>
+            <div class="product-body">
+              <span class="tag">売上・経理</span>
+              <h3>小規模事業者向け 売上・利益管理表</h3>
+              <p>毎月の売上、経費、利益率を自動集計。</p>
+              <div class="product-meta"><strong>¥980</strong><span>★ 4.9</span></div>
+            </div>
+          </article>
+
+          <article class="product-card" data-category="在庫・発注" data-title="在庫不足アラート付き 在庫管理表">
+            <div class="product-thumb thumb-blue">在庫不足<br>アラート</div>
+            <div class="product-body">
+              <span class="tag">在庫・発注</span>
+              <h3>在庫不足アラート付き 在庫管理表</h3>
+              <p>残数が少なくなると自動でお知らせ。</p>
+              <div class="product-meta"><strong>¥780</strong><span>★ 4.8</span></div>
+            </div>
+          </article>
+
+          <article class="product-card" data-category="人事・勤務" data-title="勤務時間と残業を自動計算する勤怠表">
+            <div class="product-thumb thumb-purple">勤怠・残業<br>自動計算</div>
+            <div class="product-body">
+              <span class="tag">人事・勤務</span>
+              <h3>勤務時間と残業を自動計算する勤怠表</h3>
+              <p>出退勤を入れるだけで勤務時間を集計。</p>
+              <div class="product-meta"><strong>¥1,200</strong><span>★ 4.7</span></div>
+            </div>
+          </article>
+
+          <article class="product-card" data-category="運送・物流" data-title="車両別 売上・営業利益計算表">
+            <div class="product-thumb thumb-orange">車両別<br>利益計算</div>
+            <div class="product-body">
+              <span class="tag">運送・物流</span>
+              <h3>車両別 売上・営業利益計算表</h3>
+              <p>運賃、燃料、人件費から1台ごとの利益を計算。</p>
+              <div class="product-meta"><strong>¥1,480</strong><span>★ 5.0</span></div>
+            </div>
+          </article>
+
+          <article class="product-card" data-category="暮らし" data-title="住宅ローンと家計の年間管理表">
+            <div class="product-thumb thumb-pink">住宅ローン<br>家計管理</div>
+            <div class="product-body">
+              <span class="tag">暮らし</span>
+              <h3>住宅ローンと家計の年間管理表</h3>
+              <p>返済、固定費、貯蓄をひとつにまとめて管理。</p>
+              <div class="product-meta"><strong>¥680</strong><span>★ 4.6</span></div>
+            </div>
+          </article>
+
+          <article class="product-card" data-category="売上・経理" data-title="飲食店向け 原価率・粗利計算表">
+            <div class="product-thumb thumb-yellow">原価率<br>粗利計算</div>
+            <div class="product-body">
+              <span class="tag">売上・経理</span>
+              <h3>飲食店向け 原価率・粗利計算表</h3>
+              <p>商品ごとの原価率と粗利を自動で見える化。</p>
+              <div class="product-meta"><strong>¥890</strong><span>★ 4.8</span></div>
+            </div>
+          </article>
+        </div>
+
+        <div id="emptyState" class="empty-state" hidden>
+          該当する商品はありません。
+        </div>
+      </div>
+    </section>
+
+    <section id="sell" class="sell-section">
+      <div class="container sell-grid">
+        <div>
+          <p class="eyebrow">FOR SELLERS</p>
+          <h2>そのExcel、誰かの役に立つかもしれません。</h2>
+          <p>
+            普段の仕事で作った便利な表を、商品として出品。
+            価格を決めて登録すれば、売れた分だけ収入になります。
+          </p>
+          <button class="btn btn-primary" type="button" onclick="showMessage('出品フォームは次の段階で追加します。')">
+            無料で出品を始める
+          </button>
+        </div>
+        <div class="steps">
+          <div class="step"><span>1</span><div><strong>商品を登録</strong><p>説明・画像・価格を設定</p></div></div>
+          <div class="step"><span>2</span><div><strong>購入される</strong><p>購入者へ自動で納品</p></div></div>
+          <div class="step"><span>3</span><div><strong>売上を受け取る</strong><p>手数料を差し引いて入金</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta">
+      <div class="container cta-inner">
+        <div>
+          <p class="eyebrow">SHEET ICHIBA</p>
+          <h2>便利なExcelを、もっと身近に。</h2>
+        </div>
+        <a class="btn btn-light" href="#products">商品を見る</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>
+        <a class="brand footer-brand" href="#"><span class="brand-mark">S</span><span>シート市場</span></a>
+        <p>便利なExcel、売れる。買える。</p>
+      </div>
+      <div class="footer-links">
+        <a href="#">利用規約</a>
+        <a href="#">プライバシーポリシー</a>
+        <a href="#">特定商取引法に基づく表記</a>
+        <a href="#">お問い合わせ</a>
+      </div>
+    </div>
+    <div class="copyright">© 2026 Sheet Ichiba</div>
+  </footer>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
