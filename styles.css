@@ -161,3 +161,109 @@ footer{background:#0e1f16;color:#d8e6dd;padding:60px 0 0}
   .hero-panel{min-height:310px}
   .floating-note{font-size:11px;padding:8px 12px}
 }
+
+
+/* Authentication */
+.auth-user-label{
+  max-width:190px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:12px;
+  color:var(--muted);
+}
+.modal{
+  position:fixed;
+  inset:0;
+  z-index:100;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+.modal.open{display:flex}
+.modal-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(8,20,13,.62);
+  backdrop-filter:blur(4px);
+}
+.modal-card{
+  position:relative;
+  z-index:1;
+  width:min(100%,440px);
+  border-radius:22px;
+  background:#fff;
+  padding:30px;
+  box-shadow:0 30px 100px rgba(0,0,0,.25);
+}
+.modal-close{
+  position:absolute;
+  top:14px;
+  right:16px;
+  border:0;
+  background:transparent;
+  font-size:28px;
+  line-height:1;
+  cursor:pointer;
+  color:var(--muted);
+}
+.auth-tabs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  padding:5px;
+  margin-bottom:25px;
+  border-radius:12px;
+  background:#f1f5f2;
+}
+.auth-tab{
+  border:0;
+  border-radius:9px;
+  padding:10px;
+  background:transparent;
+  cursor:pointer;
+  font-weight:700;
+  color:var(--muted);
+}
+.auth-tab.active{
+  background:#fff;
+  color:var(--green-dark);
+  box-shadow:0 4px 14px rgba(24,65,40,.09);
+}
+.auth-title{font-size:29px;margin-bottom:6px}
+.auth-description{margin:0 0 22px;color:var(--muted);font-size:14px}
+.auth-form{display:grid;gap:16px}
+.auth-form label{display:grid;gap:7px;font-size:13px;font-weight:700}
+.auth-form input{
+  width:100%;
+  border:1px solid var(--line);
+  border-radius:11px;
+  padding:13px 14px;
+  outline:none;
+}
+.auth-form input:focus{
+  border-color:#6cb48a;
+  box-shadow:0 0 0 3px rgba(19,122,74,.10);
+}
+.auth-submit{width:100%;margin-top:4px}
+.auth-message{
+  min-height:24px;
+  margin:15px 0 0;
+  font-size:13px;
+  font-weight:600;
+}
+.auth-message.error{color:#b42318}
+.auth-message.success{color:var(--green-dark)}
+.auth-note{
+  margin:18px 0 0;
+  padding-top:16px;
+  border-top:1px solid var(--line);
+  color:var(--muted);
+  font-size:11px;
+}
+body.modal-open{overflow:hidden}
+
+@media (max-width:900px){
+  .auth-user-label{display:none!important}
+}

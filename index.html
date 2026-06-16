@@ -20,7 +20,8 @@
       <nav class="nav">
         <a href="#products">商品を探す</a>
         <a href="#sell">出品する</a>
-        <button class="btn btn-ghost" type="button" onclick="showMessage('ログイン機能は次の段階で追加します。')">ログイン</button>
+        <span id="authUserLabel" class="auth-user-label" hidden></span>
+        <button id="authButton" class="btn btn-ghost" type="button" onclick="handleAuthButton()">ログイン</button>
       </nav>
     </div>
   </header>
@@ -73,12 +74,12 @@
         </div>
 
         <div class="categories">
-          <button onclick="filterProducts('すべて')" class="category active">すべて</button>
-          <button onclick="filterProducts('売上・経理')" class="category">売上・経理</button>
-          <button onclick="filterProducts('在庫・発注')" class="category">在庫・発注</button>
-          <button onclick="filterProducts('人事・勤務')" class="category">人事・勤務</button>
-          <button onclick="filterProducts('運送・物流')" class="category">運送・物流</button>
-          <button onclick="filterProducts('暮らし')" class="category">暮らし</button>
+          <button onclick="filterProducts(\'すべて\', this)" class="category active">すべて</button>
+          <button onclick="filterProducts(\'売上・経理\', this)" class="category">売上・経理</button>
+          <button onclick="filterProducts(\'在庫・発注\', this)" class="category">在庫・発注</button>
+          <button onclick="filterProducts(\'人事・勤務\', this)" class="category">人事・勤務</button>
+          <button onclick="filterProducts(\'運送・物流\', this)" class="category">運送・物流</button>
+          <button onclick="filterProducts(\'暮らし\', this)" class="category">暮らし</button>
         </div>
       </div>
     </section>
@@ -170,7 +171,7 @@
             普段の仕事で作った便利な表を、商品として出品。
             価格を決めて登録すれば、売れた分だけ収入になります。
           </p>
-          <button class="btn btn-primary" type="button" onclick="showMessage('出品フォームは次の段階で追加します。')">
+          <button class="btn btn-primary" type="button" onclick="requireLogin('出品フォーム')">
             無料で出品を始める
           </button>
         </div>
@@ -209,7 +210,40 @@
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
 
+  <div id="authModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeAuthModal()"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeAuthModal()">×</button>
+
+      <div class="auth-tabs">
+        <button id="loginTab" class="auth-tab active" type="button" onclick="setAuthMode('login')">ログイン</button>
+        <button id="signupTab" class="auth-tab" type="button" onclick="setAuthMode('signup')">新規登録</button>
+      </div>
+
+      <h2 id="authTitle" class="auth-title">ログイン</h2>
+      <p id="authDescription" class="auth-description">登録したメールアドレスとパスワードを入力してください。</p>
+
+      <form id="authForm" class="auth-form">
+        <label>
+          メールアドレス
+          <input id="authEmail" type="email" autocomplete="email" required placeholder="example@email.com">
+        </label>
+        <label>
+          パスワード
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="8文字以上">
+        </label>
+        <button id="authSubmitButton" class="btn btn-primary auth-submit" type="submit">ログイン</button>
+      </form>
+
+      <p id="authMessage" class="auth-message" aria-live="polite"></p>
+      <p class="auth-note">登録に使う公開用キーのみ接続済みです。秘密鍵はサイトに保存していません。</p>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -1,23 +1,39 @@
-# シート市場 試作サイト
+# シート市場 ログイン機能付き更新版
 
-「便利なExcel、売れる。買える。」をコンセプトにした、Excelテンプレート専門マーケットの試作版です。
+Supabaseのメールアドレス認証を接続した更新版です。
 
-## ファイル
-- `index.html`：トップページ
-- `styles.css`：デザイン
-- `app.js`：検索・カテゴリ絞り込み・メッセージ表示
+## GitHubへの上書き方法
 
-## GitHubへアップロードする方法
-1. GitHubで作成した `sheet-ichiba` リポジトリを開く
-2. `Add file` → `Upload files`
-3. このZIPを解凍し、中の3ファイルとREADMEをドラッグ
-4. 下部の `Commit changes` を押す
+1. このZIPを解凍
+2. GitHubの `sheet-ichiba` を開く
+3. `Add file` → `Upload files`
+4. 解凍した5ファイルを全部ドラッグ
+5. `Commit changes` を押す
 
-## この段階でできること
-- トップページ表示
-- 商品一覧
-- 商品検索
-- カテゴリ絞り込み
-- 出品案内表示
+同名のファイルは更新され、`config.js`だけ新しく追加されます。
 
-決済、会員登録、ファイルアップロード、購入後ダウンロードは次の段階で追加します。
+## Supabaseで必要なURL設定
+
+Supabaseのプロジェクトで、Authentication → URL Configurationを開きます。
+
+- Site URL  
+  `https://navina0527.github.io/sheet-ichiba/`
+
+- Redirect URLs  
+  `https://navina0527.github.io/sheet-ichiba/`
+
+保存後、公開サイトの「新規登録」からテストしてください。
+
+## 接続済み機能
+
+- メールアドレスとパスワードによる新規登録
+- 確認メール
+- ログイン
+- ログアウト
+- ログイン状態の保持
+- 未ログイン時の出品ボタン制御
+
+## 安全上の注意
+
+`config.js`に入っているのはブラウザ用の公開可能なProject URLとPublishable keyです。
+Secret keyまたはservice_role keyは絶対にGitHubへ入れないでください。
