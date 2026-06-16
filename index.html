@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <header class="site-header">
@@ -38,7 +38,7 @@
           </p>
           <div class="hero-actions">
             <a class="btn btn-primary" href="#products">Excelを探す</a>
-            <a class="btn btn-secondary" href="#sell">Excelを出品する</a>
+            <button class="btn btn-secondary" type="button" onclick="openProductModal()">Excelを出品する</button>
           </div>
           <div class="trust-row">
             <span>✓ すぐダウンロード</span>
@@ -74,12 +74,12 @@
         </div>
 
         <div class="categories">
-          <button onclick="filterProducts(\'すべて\', this)" class="category active">すべて</button>
-          <button onclick="filterProducts(\'売上・経理\', this)" class="category">売上・経理</button>
-          <button onclick="filterProducts(\'在庫・発注\', this)" class="category">在庫・発注</button>
-          <button onclick="filterProducts(\'人事・勤務\', this)" class="category">人事・勤務</button>
-          <button onclick="filterProducts(\'運送・物流\', this)" class="category">運送・物流</button>
-          <button onclick="filterProducts(\'暮らし\', this)" class="category">暮らし</button>
+          <button onclick="filterProducts('すべて', this)" class="category active">すべて</button>
+          <button onclick="filterProducts('売上・経理', this)" class="category">売上・経理</button>
+          <button onclick="filterProducts('在庫・発注', this)" class="category">在庫・発注</button>
+          <button onclick="filterProducts('人事・勤務', this)" class="category">人事・勤務</button>
+          <button onclick="filterProducts('運送・物流', this)" class="category">運送・物流</button>
+          <button onclick="filterProducts('暮らし', this)" class="category">暮らし</button>
         </div>
       </div>
     </section>
@@ -95,69 +95,13 @@
         </div>
 
         <div id="productGrid" class="product-grid">
-          <article class="product-card" data-category="売上・経理" data-title="小規模事業者向け 売上・利益管理表">
-            <div class="product-thumb thumb-green">売上・利益<br>管理表</div>
-            <div class="product-body">
-              <span class="tag">売上・経理</span>
-              <h3>小規模事業者向け 売上・利益管理表</h3>
-              <p>毎月の売上、経費、利益率を自動集計。</p>
-              <div class="product-meta"><strong>¥980</strong><span>★ 4.9</span></div>
-            </div>
-          </article>
-
-          <article class="product-card" data-category="在庫・発注" data-title="在庫不足アラート付き 在庫管理表">
-            <div class="product-thumb thumb-blue">在庫不足<br>アラート</div>
-            <div class="product-body">
-              <span class="tag">在庫・発注</span>
-              <h3>在庫不足アラート付き 在庫管理表</h3>
-              <p>残数が少なくなると自動でお知らせ。</p>
-              <div class="product-meta"><strong>¥780</strong><span>★ 4.8</span></div>
-            </div>
-          </article>
-
-          <article class="product-card" data-category="人事・勤務" data-title="勤務時間と残業を自動計算する勤怠表">
-            <div class="product-thumb thumb-purple">勤怠・残業<br>自動計算</div>
-            <div class="product-body">
-              <span class="tag">人事・勤務</span>
-              <h3>勤務時間と残業を自動計算する勤怠表</h3>
-              <p>出退勤を入れるだけで勤務時間を集計。</p>
-              <div class="product-meta"><strong>¥1,200</strong><span>★ 4.7</span></div>
-            </div>
-          </article>
-
-          <article class="product-card" data-category="運送・物流" data-title="車両別 売上・営業利益計算表">
-            <div class="product-thumb thumb-orange">車両別<br>利益計算</div>
-            <div class="product-body">
-              <span class="tag">運送・物流</span>
-              <h3>車両別 売上・営業利益計算表</h3>
-              <p>運賃、燃料、人件費から1台ごとの利益を計算。</p>
-              <div class="product-meta"><strong>¥1,480</strong><span>★ 5.0</span></div>
-            </div>
-          </article>
-
-          <article class="product-card" data-category="暮らし" data-title="住宅ローンと家計の年間管理表">
-            <div class="product-thumb thumb-pink">住宅ローン<br>家計管理</div>
-            <div class="product-body">
-              <span class="tag">暮らし</span>
-              <h3>住宅ローンと家計の年間管理表</h3>
-              <p>返済、固定費、貯蓄をひとつにまとめて管理。</p>
-              <div class="product-meta"><strong>¥680</strong><span>★ 4.6</span></div>
-            </div>
-          </article>
-
-          <article class="product-card" data-category="売上・経理" data-title="飲食店向け 原価率・粗利計算表">
-            <div class="product-thumb thumb-yellow">原価率<br>粗利計算</div>
-            <div class="product-body">
-              <span class="tag">売上・経理</span>
-              <h3>飲食店向け 原価率・粗利計算表</h3>
-              <p>商品ごとの原価率と粗利を自動で見える化。</p>
-              <div class="product-meta"><strong>¥890</strong><span>★ 4.8</span></div>
-            </div>
-          </article>
+          <div class="loading-products">商品を読み込んでいます…</div>
         </div>
 
         <div id="emptyState" class="empty-state" hidden>
-          該当する商品はありません。
+          <strong>まだ商品がありません。</strong>
+          <span>最初の便利なExcelを出品してみよう！</span>
+          <button class="btn btn-primary" type="button" onclick="openProductModal()">Excelを出品する</button>
         </div>
       </div>
     </section>
@@ -171,7 +115,7 @@
             普段の仕事で作った便利な表を、商品として出品。
             価格を決めて登録すれば、売れた分だけ収入になります。
           </p>
-          <button class="btn btn-primary" type="button" onclick="requireLogin('出品フォーム')">
+          <button class="btn btn-primary" type="button" onclick="openProductModal()">
             無料で出品を始める
           </button>
         </div>
@@ -210,6 +154,81 @@
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
 
+  <div id="productModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeProductModal()"></div>
+    <div class="modal-card product-modal-card" role="dialog" aria-modal="true" aria-labelledby="productModalTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeProductModal()">×</button>
+
+      <p class="eyebrow">SELL YOUR SHEET</p>
+      <h2 id="productModalTitle" class="auth-title">Excelを出品する</h2>
+      <p class="auth-description">登録後すぐ商品一覧へ公開されます。販売できる形式は .xlsx のみです。</p>
+
+      <form id="productForm" class="product-form">
+        <div class="form-grid-two">
+          <label>
+            商品名
+            <input id="productTitle" type="text" maxlength="100" required placeholder="例：飲食店向け 原価率・粗利計算表">
+          </label>
+
+          <label>
+            カテゴリ
+            <select id="productCategory" required>
+              <option value="">選択してください</option>
+              <option value="売上・経理">売上・経理</option>
+              <option value="在庫・発注">在庫・発注</option>
+              <option value="人事・勤務">人事・勤務</option>
+              <option value="運送・物流">運送・物流</option>
+              <option value="暮らし">暮らし</option>
+              <option value="その他">その他</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          販売価格（税込・円）
+          <input id="productPrice" type="number" min="0" max="1000000" step="1" required placeholder="980">
+        </label>
+
+        <label>
+          商品説明
+          <textarea id="productDescription" maxlength="2000" required rows="6" placeholder="どんな人向けか、入力する項目、自動計算される内容などを書いてください。"></textarea>
+        </label>
+
+        <div class="form-grid-two">
+          <label class="file-field">
+            商品画像
+            <input id="productPreview" type="file" accept="image/jpeg,image/png,image/webp" required>
+            <span>JPEG・PNG・WebP／5MBまで</span>
+          </label>
+
+          <label class="file-field">
+            Excelファイル
+            <input id="productFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+            <span>.xlsxのみ／10MBまで</span>
+          </label>
+        </div>
+
+        <div id="selectedFiles" class="selected-files" hidden></div>
+
+        <label class="agreement">
+          <input id="productRights" type="checkbox" required>
+          <span>自分で作成した、または販売する権利があるファイルで、個人情報・会社の機密情報を含んでいません。</span>
+        </label>
+
+        <button id="productSubmitButton" class="btn btn-primary auth-submit" type="submit">
+          この内容で公開する
+        </button>
+
+        <div id="uploadProgress" class="upload-progress" hidden>
+          <span class="spinner"></span>
+          <span id="uploadProgressText">アップロードしています…</span>
+        </div>
+
+        <p id="productMessage" class="auth-message" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
+
   <div id="authModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeAuthModal()"></div>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -243,7 +262,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=3"></script>
-  <script src="app.js?v=3"></script>
+  <script src="config.js?v=4"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
