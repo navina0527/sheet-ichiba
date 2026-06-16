@@ -1,17 +1,24 @@
 const supabaseClient = window.supabase.createClient(
   window.SHEET_ICHIBA_CONFIG.url,
-  window.SHEET_ICHIBA_CONFIG.publishableKey
+  window.SHEET_ICHIBA_CONFIG.publishableKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
 );
 
 let authMode = "login";
 let currentSession = null;
 
-function showMessage(message){
+function showMessage(message, duration = 3200){
   const toast = document.getElementById("toast");
   toast.textContent = message;
   toast.classList.add("show");
   clearTimeout(window.toastTimer);
-  window.toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+  window.toastTimer = setTimeout(() => toast.classList.remove("show"), duration);
 }
 
 function updateCount(){
@@ -92,9 +99,97 @@ function translateAuthError(message){
   if(text.includes("Invalid login credentials")) return "メールアドレスかパスワードが違います。";
   if(text.includes("User already registered")) return "このメールアドレスはすでに登録されています。";
   if(text.includes("Password should be")) return "パスワードは8文字以上で入力してください。";
-  if(text.includes("Email not confirmed")) return "確認メール内のリンクを押してからログインしてください。";
+  if(text.includes("Email not confirmed")) return "確認メール内のリンクを押して、メール確認を完了してください。";
   if(text.includes("Unable to validate email address")) return "メールアドレスの形式を確認してください。";
+  if(text.includes("expired")) return "確認リンクの期限が切れています。もう一度新規登録してください。";
   return `処理できませんでした：${text}`;
+}
+
+function getSiteRootUrl(){
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+function hasAuthCallbackParams(){
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  return Boolean(
+    query.get("code") ||
+    query.get("error") ||
+    query.get("error_description") ||
+    hash.get("access_token") ||
+    hash.get("refresh_token") ||
+    hash.get("error") ||
+    hash.get("error_description")
+  );
+}
+
+function cleanAuthParamsFromUrl(){
+  window.history.replaceState({}, document.title, getSiteRootUrl());
+}
+
+async function completeEmailConfirmation(){
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const callbackDetected = hasAuthCallbackParams();
+
+  const errorDescription =
+    query.get("error_description") ||
+    hash.get("error_description") ||
+    query.get("error") ||
+    hash.get("error");
+
+  if(errorDescription){
+    cleanAuthParamsFromUrl();
+    showMessage(`メール確認に失敗しました：${decodeURIComponent(errorDescription.replace(/\+/g, " "))}`, 6000);
+    return null;
+  }
+
+  // PKCE形式で戻った場合
+  const code = query.get("code");
+  if(code){
+    const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+    cleanAuthParamsFromUrl();
+    if(error){
+      console.error("Code exchange error:", error);
+      showMessage("確認リンクを処理できませんでした。もう一度確認メールを開いてください。", 6000);
+      return null;
+    }
+    showMessage("メール確認が完了しました。ログイン済みです！", 5000);
+    return data.session ?? null;
+  }
+
+  // 通常のメール確認リンク（URLの#以降にトークンが付く形式）
+  const accessToken = hash.get("access_token");
+  const refreshToken = hash.get("refresh_token");
+  if(accessToken && refreshToken){
+    const { data, error } = await supabaseClient.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+    cleanAuthParamsFromUrl();
+    if(error){
+      console.error("Set session error:", error);
+      showMessage("メール確認は行われましたが、自動ログインに失敗しました。ログイン画面から入ってください。", 6000);
+      return null;
+    }
+    showMessage("メール確認が完了しました。ログイン済みです！", 5000);
+    return data.session ?? null;
+  }
+
+  // Supabase JSが自動でURLを処理した場合
+  const { data, error } = await supabaseClient.auth.getSession();
+  if(error){
+    console.error("Session error:", error);
+  }
+
+  if(callbackDetected){
+    cleanAuthParamsFromUrl();
+    if(data?.session){
+      showMessage("メール確認が完了しました。ログイン済みです！", 5000);
+    }
+  }
+
+  return data?.session ?? null;
 }
 
 async function handleAuthSubmit(event){
@@ -110,11 +205,12 @@ async function handleAuthSubmit(event){
 
   try{
     if(authMode === "signup"){
-      const redirectUrl = `${window.location.origin}${window.location.pathname}`;
       const { data, error } = await supabaseClient.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: redirectUrl }
+        options: {
+          emailRedirectTo: getSiteRootUrl()
+        }
       });
 
       if(error) throw error;
@@ -123,7 +219,7 @@ async function handleAuthSubmit(event){
         setAuthMessage("登録してログインしました。", "success");
         setTimeout(closeAuthModal, 700);
       }else{
-        setAuthMessage("確認メールを送りました。メール内のリンクを押してください。", "success");
+        setAuthMessage("確認メールを送りました。メール内のリンクを押すと、自動でログインします。", "success");
       }
     }else{
       const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
@@ -196,11 +292,16 @@ document.querySelectorAll(".product-card").forEach(card => {
 });
 
 (async function initializeAuth(){
-  const { data, error } = await supabaseClient.auth.getSession();
-  if(error){
-    console.error("Session error:", error);
+  const callbackSession = await completeEmailConfirmation();
+  if(callbackSession){
+    refreshAuthUI(callbackSession);
+  }else{
+    const { data, error } = await supabaseClient.auth.getSession();
+    if(error){
+      console.error("Session error:", error);
+    }
+    refreshAuthUI(data?.session ?? null);
   }
-  refreshAuthUI(data?.session ?? null);
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     refreshAuthUI(session);

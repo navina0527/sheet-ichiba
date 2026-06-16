@@ -1,39 +1,34 @@
-# シート市場 ログイン機能付き更新版
+# シート市場 メール確認対応版 v3
 
-Supabaseのメールアドレス認証を接続した更新版です。
+確認メールのリンクからサイトへ戻った際に、認証情報を受け取り、自動ログインする処理を追加した版です。
 
 ## GitHubへの上書き方法
 
-1. このZIPを解凍
+1. ZIPを解凍
 2. GitHubの `sheet-ichiba` を開く
 3. `Add file` → `Upload files`
 4. 解凍した5ファイルを全部ドラッグ
 5. `Commit changes` を押す
 
-同名のファイルは更新され、`config.js`だけ新しく追加されます。
+同名ファイルは上書きされます。ブラウザキャッシュ対策として `?v=3` を付けています。
 
-## Supabaseで必要なURL設定
+## Supabase側の設定
 
-Supabaseのプロジェクトで、Authentication → URL Configurationを開きます。
+Authentication → URL Configuration
 
-- Site URL  
-  `https://navina0527.github.io/sheet-ichiba/`
+- Site URL: `https://navina0527.github.io/sheet-ichiba/`
+- Redirect URLs: `https://navina0527.github.io/sheet-ichiba/`
 
-- Redirect URLs  
-  `https://navina0527.github.io/sheet-ichiba/`
+その後、Emailプロバイダーの `Confirm email` をONに戻します。
 
-保存後、公開サイトの「新規登録」からテストしてください。
+## テスト
 
-## 接続済み機能
+既存の確認済みアカウントには影響しません。確認メールを試すには、別のメールアドレスで新規登録するか、テストユーザーを削除して同じアドレスで登録し直します。
 
-- メールアドレスとパスワードによる新規登録
-- 確認メール
-- ログイン
-- ログアウト
-- ログイン状態の保持
-- 未ログイン時の出品ボタン制御
+## 追加した処理
 
-## 安全上の注意
-
-`config.js`に入っているのはブラウザ用の公開可能なProject URLとPublishable keyです。
-Secret keyまたはservice_role keyは絶対にGitHubへ入れないでください。
+- 確認メールから戻ったURLの認証情報を処理
+- 通常のトークン形式とPKCEコード形式の両方に対応
+- 確認成功後に自動ログイン
+- 認証用の長いURLパラメータを自動削除
+- 成功・失敗メッセージを日本語表示
