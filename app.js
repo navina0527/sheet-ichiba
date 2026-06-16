@@ -15,6 +15,7 @@ let currentSession = null;
 let allProducts = [];
 let activeCategory = "すべて";
 let currentSearchTerm = "";
+let stripeStatusChecking = false;
 
 function showMessage(message, duration = 3200){
   const toast = document.getElementById("toast");
@@ -365,6 +366,184 @@ function refreshAuthUI(session){
     label.hidden = true;
     button.textContent = "ログイン";
   }
+
+  setStripeUI();
+}
+
+
+function setStripeUI(state = {}){
+  const headerButton = document.getElementById("stripeConnectButton");
+  const sellerButton = document.getElementById("sellerConnectButton");
+  const badge = document.getElementById("payoutStatusBadge");
+  const text = document.getElementById("payoutStatusText");
+
+  if(!headerButton || !sellerButton || !badge || !text) return;
+
+  const loggedIn = Boolean(currentSession?.user);
+  headerButton.hidden = !loggedIn;
+
+  if(!loggedIn){
+    badge.textContent = "ログインが必要";
+    badge.className = "payout-status pending";
+    text.textContent = "売上受取設定を行うには、先にログインしてください。";
+    sellerButton.textContent = "ログインして設定";
+    sellerButton.disabled = false;
+    headerButton.classList.remove("complete");
+    headerButton.textContent = "売上受取設定";
+    return;
+  }
+
+  if(state.checking){
+    badge.textContent = "確認中";
+    badge.className = "payout-status checking";
+    text.textContent = "Stripeの登録状況を確認しています…";
+    sellerButton.textContent = "確認中…";
+    sellerButton.disabled = true;
+    return;
+  }
+
+  sellerButton.disabled = false;
+
+  if(state.onboardingComplete){
+    badge.textContent = "設定完了";
+    badge.className = "payout-status complete";
+    text.textContent = "本人確認と売上受取設定が完了しています。";
+    sellerButton.textContent = "登録内容を確認・更新";
+    headerButton.textContent = "受取設定済み";
+    headerButton.classList.add("complete");
+    return;
+  }
+
+  if(state.connected){
+    badge.textContent = "設定途中";
+    badge.className = "payout-status pending";
+    text.textContent = "Stripeの登録がまだ完了していません。続きを入力してください。";
+    sellerButton.textContent = "受取設定を続ける";
+    headerButton.textContent = "受取設定を続ける";
+    headerButton.classList.remove("complete");
+    return;
+  }
+
+  if(state.error){
+    badge.textContent = "確認エラー";
+    badge.className = "payout-status error";
+    text.textContent = "登録状況を確認できませんでした。もう一度お試しください。";
+    sellerButton.textContent = "受取設定を開く";
+    headerButton.textContent = "売上受取設定";
+    headerButton.classList.remove("complete");
+    return;
+  }
+
+  badge.textContent = "未設定";
+  badge.className = "payout-status pending";
+  text.textContent = "出品した商品の売上を受け取るには、Stripeで本人確認と振込口座の登録が必要です。";
+  sellerButton.textContent = "受取設定を始める";
+  headerButton.textContent = "売上受取設定";
+  headerButton.classList.remove("complete");
+}
+
+async function invokeConnectAccount(action){
+  const { data, error } = await supabaseClient.functions.invoke("connect-account", {
+    body: { action }
+  });
+
+  if(error){
+    let message = error.message || "Edge Functionを呼び出せませんでした。";
+    try{
+      const contextBody = await error.context?.json();
+      if(contextBody?.error) message = contextBody.error;
+    }catch(_ignored){}
+    throw new Error(message);
+  }
+
+  if(data?.error){
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+async function checkStripeStatus(showResultMessage = false){
+  if(!currentSession?.user || stripeStatusChecking) return null;
+
+  stripeStatusChecking = true;
+  setStripeUI({ checking: true });
+
+  try{
+    const status = await invokeConnectAccount("status");
+    setStripeUI(status || {});
+
+    if(showResultMessage){
+      if(status?.onboardingComplete){
+        showMessage("売上の受取設定が完了しました！");
+      }else if(status?.connected){
+        showMessage("受取設定はまだ途中です。続きを入力してください。", 5000);
+      }else{
+        showMessage("売上受取設定はまだ開始されていません。", 5000);
+      }
+    }
+
+    return status;
+  }catch(error){
+    console.error("Stripe status error:", error);
+    setStripeUI({ error: true });
+    if(showResultMessage){
+      showMessage(`受取設定を確認できませんでした：${error.message}`, 6000);
+    }
+    return null;
+  }finally{
+    stripeStatusChecking = false;
+  }
+}
+
+async function startStripeOnboarding(){
+  if(!currentSession?.user){
+    showMessage("売上受取設定にはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  const buttons = [
+    document.getElementById("stripeConnectButton"),
+    document.getElementById("sellerConnectButton")
+  ].filter(Boolean);
+
+  buttons.forEach(button => button.disabled = true);
+  showMessage("Stripeの登録画面を準備しています…", 5000);
+
+  try{
+    const data = await invokeConnectAccount("onboard");
+
+    if(!data?.url){
+      throw new Error("Stripeの登録URLを取得できませんでした。");
+    }
+
+    window.location.assign(data.url);
+  }catch(error){
+    console.error("Stripe onboarding error:", error);
+    showMessage(`売上受取設定を開けませんでした：${error.message}`, 7000);
+    buttons.forEach(button => button.disabled = false);
+  }
+}
+
+async function handleStripeRedirect(){
+  const params = new URLSearchParams(window.location.search);
+  const stripeResult = params.get("stripe");
+
+  if(!stripeResult || !currentSession?.user) return;
+
+  const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+  window.history.replaceState({}, document.title, cleanUrl);
+
+  if(stripeResult === "refresh"){
+    showMessage("Stripeの登録リンクを作り直しています…", 5000);
+    await startStripeOnboarding();
+    return;
+  }
+
+  if(stripeResult === "return"){
+    await checkStripeStatus(true);
+  }
 }
 
 function openProductModal(){
@@ -571,9 +750,21 @@ document.addEventListener("keydown", event => {
     refreshAuthUI(data?.session ?? null);
   }
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
     refreshAuthUI(session);
+
+    if(event === "SIGNED_IN" && session?.user){
+      setTimeout(() => checkStripeStatus(false), 0);
+    }
   });
+
+  if(currentSession?.user){
+    await handleStripeRedirect();
+
+    if(!new URLSearchParams(window.location.search).get("stripe")){
+      await checkStripeStatus(false);
+    }
+  }
 
   await loadProducts();
 })();

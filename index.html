@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
   <header class="site-header">
@@ -20,6 +20,9 @@
       <nav class="nav">
         <a href="#products">商品を探す</a>
         <a href="#sell">出品する</a>
+        <button id="stripeConnectButton" class="btn btn-stripe-connect" type="button" onclick="startStripeOnboarding()" hidden>
+          売上受取設定
+        </button>
         <span id="authUserLabel" class="auth-user-label" hidden></span>
         <button id="authButton" class="btn btn-ghost" type="button" onclick="handleAuthButton()">ログイン</button>
       </nav>
@@ -119,10 +122,24 @@
             無料で出品を始める
           </button>
         </div>
-        <div class="steps">
+        <div>
+          <div id="sellerPayoutCard" class="payout-card">
+            <div class="payout-icon">¥</div>
+            <div class="payout-copy">
+              <span id="payoutStatusBadge" class="payout-status pending">未設定</span>
+              <strong>売上の受取口座を設定</strong>
+              <p id="payoutStatusText">出品した商品の売上を受け取るには、Stripeで本人確認と振込口座の登録が必要です。</p>
+            </div>
+            <button id="sellerConnectButton" class="btn btn-primary" type="button" onclick="startStripeOnboarding()">
+              受取設定を始める
+            </button>
+          </div>
+
+          <div class="steps">
           <div class="step"><span>1</span><div><strong>商品を登録</strong><p>説明・画像・価格を設定</p></div></div>
           <div class="step"><span>2</span><div><strong>購入される</strong><p>購入者へ自動で納品</p></div></div>
           <div class="step"><span>3</span><div><strong>売上を受け取る</strong><p>手数料を差し引いて入金</p></div></div>
+          </div>
         </div>
       </div>
     </section>
@@ -262,7 +279,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=4"></script>
-  <script src="app.js?v=4"></script>
+  <script src="config.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

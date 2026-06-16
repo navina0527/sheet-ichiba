@@ -412,3 +412,96 @@ body.modal-open{overflow:hidden}
   .form-grid-two{grid-template-columns:1fr}
   .product-modal-card{padding:24px 18px}
 }
+
+
+/* Stripe seller onboarding */
+.btn-stripe-connect{
+  padding:10px 14px;
+  border:1px solid #c7d8cd;
+  background:#fff;
+  color:var(--green-dark);
+  font-size:12px;
+}
+.btn-stripe-connect:hover{
+  border-color:#85b596;
+  background:var(--green-light);
+}
+.btn-stripe-connect.complete{
+  border-color:#8dc9a3;
+  background:var(--green-light);
+}
+.payout-card{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  gap:16px;
+  align-items:center;
+  padding:20px;
+  margin-bottom:16px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 12px 30px rgba(24,65,40,.06);
+}
+.payout-icon{
+  width:48px;
+  height:48px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  background:var(--green-light);
+  color:var(--green-dark);
+  font-size:23px;
+  font-weight:800;
+}
+.payout-copy{
+  min-width:0;
+}
+.payout-copy strong{
+  display:block;
+  margin:4px 0;
+  font-size:17px;
+}
+.payout-copy p{
+  margin:0!important;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.6;
+}
+.payout-status{
+  display:inline-flex;
+  align-items:center;
+  width:max-content;
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:800;
+}
+.payout-status.pending{
+  color:#8a5a00;
+  background:#fff3cd;
+}
+.payout-status.checking{
+  color:#355b75;
+  background:#e6f2fa;
+}
+.payout-status.complete{
+  color:var(--green-dark);
+  background:var(--green-light);
+}
+.payout-status.error{
+  color:#a61b1b;
+  background:#fde9e9;
+}
+
+@media (max-width:900px){
+  .btn-stripe-connect{display:none!important}
+}
+@media (max-width:620px){
+  .payout-card{
+    grid-template-columns:auto 1fr;
+  }
+  .payout-card>.btn{
+    grid-column:1 / -1;
+    width:100%;
+  }
+}
