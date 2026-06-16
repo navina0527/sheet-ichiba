@@ -594,3 +594,21 @@ body.modal-open{overflow:hidden}
   .detail-buy-button{width:100%}
   .detail-purchase-note{text-align:left}
 }
+
+
+/* Purchased / download */
+.purchased-label{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 9px;
+  border-radius:999px;
+  background:var(--green-light);
+  color:var(--green-dark)!important;
+  font-weight:800;
+}
+.detail-buy-button.download-product{
+  background:var(--green-dark);
+}
+.detail-buy-button.download-product:hover{
+  background:#084d2d;
+}
