@@ -642,11 +642,20 @@ async function checkAdminStatus(){
   }
 
   try{
-    const data = await invokeAdminApi("status");
-    isPlatformAdmin = Boolean(data?.isAdmin);
+    // 初回の管理者判定は、本人が自分の管理者行だけ読める
+    // admin_usersのRLSを使って直接確認します。
+    const { data, error } = await supabaseClient
+      .from("admin_users")
+      .select("user_id")
+      .eq("user_id", currentSession.user.id)
+      .maybeSingle();
+
+    if(error) throw error;
+
+    isPlatformAdmin = Boolean(data?.user_id);
   }catch(error){
     isPlatformAdmin = false;
-    console.log("Admin status:", error.message);
+    console.error("Admin status check failed:", error);
   }
 
   if(button) button.hidden = !isPlatformAdmin;
@@ -662,7 +671,10 @@ async function openAdminModal(){
   if(!isPlatformAdmin){
     const allowed = await checkAdminStatus();
     if(!allowed){
-      showMessage("管理者権限がありません。");
+      showMessage(
+        "管理者情報を確認できませんでした。ページを再読み込みし、ログインし直してください。",
+        7000
+      );
       return;
     }
   }
