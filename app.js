@@ -36,6 +36,8 @@ let adminMfaMode = "challenge";
 let adminMfaFactorId = "";
 let adminMfaPendingEnrollmentId = "";
 let adminMfaAfterSuccess = null;
+let adminAccessPassword = "";
+let adminAccessAfterSuccess = null;
 const CART_STORAGE_KEY = "sheetIchibaCartV1";
 const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
 let cartProductIds = [];
@@ -480,6 +482,8 @@ function refreshAuthUI(session){
     adminButton.hidden = true;
     isPlatformAdmin = false;
     adminDashboardData = null;
+    adminAccessPassword = "";
+    adminAccessAfterSuccess = null;
     paidProductIds = new Set();
     paidPurchases = [];
     sellerProducts = [];
@@ -495,6 +499,7 @@ function refreshAuthUI(session){
     closePublicSellerInfoModal();
     closeAdminModal();
     closeAdminMfaModal();
+    closeAdminAccessModal();
   }
 
   updateSellerLegalHeader();
@@ -649,6 +654,99 @@ async function submitAdminMfa(event){
   }
 }
 
+function setAdminAccessMessage(message, type = ""){
+  const target = document.getElementById("adminAccessMessage");
+  if(!target) return;
+  target.textContent = message;
+  target.className = `auth-message ${type}`.trim();
+}
+
+function openAdminAccessModal(onSuccess){
+  adminAccessAfterSuccess = onSuccess;
+  const modal = document.getElementById("adminAccessModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  setAdminAccessMessage("");
+
+  const input = document.getElementById("adminAccessPassword");
+  if(input){
+    input.value = "";
+    setTimeout(() => input.focus(), 100);
+  }
+}
+
+function closeAdminAccessModal(){
+  const modal = document.getElementById("adminAccessModal");
+  if(!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  adminAccessAfterSuccess = null;
+
+  const input = document.getElementById("adminAccessPassword");
+  if(input) input.value = "";
+
+  setAdminAccessMessage("");
+  syncBodyModalState();
+}
+
+async function requireAdminAccess(onSuccess){
+  if(adminAccessPassword){
+    try{
+      await invokeAdminApi("verify-access");
+      await onSuccess?.();
+      return;
+    }catch(error){
+      console.warn("Stored admin access password rejected:", error);
+      adminAccessPassword = "";
+    }
+  }
+
+  openAdminAccessModal(onSuccess);
+}
+
+async function submitAdminAccess(event){
+  event.preventDefault();
+
+  const input = document.getElementById("adminAccessPassword");
+  const button = document.getElementById("adminAccessSubmitButton");
+  const password = String(input?.value ?? "");
+
+  if(!password){
+    setAdminAccessMessage("管理者アクセスパスワードを入力してください。", "error");
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "確認中…";
+  setAdminAccessMessage("");
+
+  try{
+    adminAccessPassword = password;
+    await invokeAdminApi("verify-access");
+
+    const callback = adminAccessAfterSuccess;
+    adminAccessAfterSuccess = null;
+
+    setAdminAccessMessage("確認できました。", "success");
+
+    setTimeout(async () => {
+      closeAdminAccessModal();
+      await callback?.();
+    }, 300);
+  }catch(error){
+    adminAccessPassword = "";
+    setAdminAccessMessage(
+      error.message || "管理者アクセスパスワードが違います。",
+      "error"
+    );
+    input?.select();
+  }finally{
+    button.disabled = false;
+    button.textContent = "管理者画面を開く";
+  }
+}
+
 function setAdminMessage(message, type = ""){
   const target = document.getElementById("adminMessage");
   if(!target) return;
@@ -657,8 +755,14 @@ function setAdminMessage(message, type = ""){
 }
 
 async function invokeAdminApi(action, payload = {}){
+  const body = { action, ...payload };
+
+  if(action !== "status"){
+    body.adminAccessPassword = adminAccessPassword;
+  }
+
   const { data, error } = await supabaseClient.functions.invoke("admin-api", {
-    body: { action, ...payload }
+    body
   });
 
   if(error){
@@ -722,7 +826,9 @@ async function openAdminModal(){
   }
 
   try{
-    await requireAdminMfa(openAdminDashboardAfterMfa);
+    await requireAdminMfa(() =>
+      requireAdminAccess(openAdminDashboardAfterMfa)
+    );
   }catch(error){
     console.error("Admin MFA error:", error);
     showMessage(`二段階認証を開始できませんでした：${error.message}`, 7000);
@@ -761,6 +867,14 @@ async function loadAdminDashboard(){
     renderAdminDashboard();
   }catch(error){
     console.error("Admin dashboard error:", error);
+
+    if(String(error.message || "").includes("アクセスパスワード")){
+      adminAccessPassword = "";
+      closeAdminModal();
+      openAdminAccessModal(openAdminDashboardAfterMfa);
+      return;
+    }
+
     if(content) content.innerHTML = `<div class="admin-empty">${escapeHtml(error.message)}</div>`;
   }finally{
     adminLoading = false;
@@ -3111,6 +3225,7 @@ document.addEventListener("keydown", event => {
     closePublicSellerInfoModal();
     closeAdminModal();
     closeAdminMfaModal();
+    closeAdminAccessModal();
   }
 });
 
