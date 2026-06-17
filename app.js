@@ -703,6 +703,11 @@ async function openPublicSellerInfo(sellerId){
   modal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
 
+  const closeButton = modal.querySelector(".modal-close");
+  if(closeButton){
+    setTimeout(() => closeButton.focus(), 0);
+  }
+
   const { data, error } = await supabaseClient
     .from("seller_legal_profiles")
     .select("seller_id, legal_name, trade_name, contact_email, support_hours, disclosure_method, postal_code, address, phone")
