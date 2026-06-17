@@ -25,6 +25,7 @@ let sellerProducts = [];
 let sellerPurchaseRows = [];
 let editingSellerProductId = null;
 let sellerManagementLoading = false;
+let sellerSalesLoading = false;
 const CART_STORAGE_KEY = "sheetIchibaCartV1";
 const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
 let cartProductIds = [];
@@ -386,6 +387,7 @@ function refreshAuthUI(session){
   const label = document.getElementById("authUserLabel");
   const purchasedButton = document.getElementById("purchasedHeaderButton");
   const sellerManagerButton = document.getElementById("sellerManagerHeaderButton");
+  const sellerSalesButton = document.getElementById("sellerSalesHeaderButton");
 
   if(session?.user){
     label.textContent = session.user.email || "ログイン中";
@@ -393,12 +395,14 @@ function refreshAuthUI(session){
     button.textContent = "ログアウト";
     purchasedButton.hidden = false;
     sellerManagerButton.hidden = false;
+    sellerSalesButton.hidden = false;
   }else{
     label.textContent = "";
     label.hidden = true;
     button.textContent = "ログイン";
     purchasedButton.hidden = true;
     sellerManagerButton.hidden = true;
+    sellerSalesButton.hidden = true;
     paidProductIds = new Set();
     paidPurchases = [];
     sellerProducts = [];
@@ -406,6 +410,8 @@ function refreshAuthUI(session){
     updatePurchasedUI();
     closeSellerManagerModal();
     closeSellerEditModal();
+    closeSellerSalesModal();
+    closeSellerSalesModal();
   }
 
   setStripeUI();
@@ -1311,6 +1317,272 @@ async function handleStripeRedirect(){
   }
 }
 
+
+
+function getSellerSalesProductTitle(productId){
+  const product = sellerProducts.find(item => item.id === productId);
+  return product?.title || "削除済みの商品";
+}
+
+function getSellerSalesPeriodRange(period){
+  const now = new Date();
+  let start = null;
+  let end = null;
+
+  if(period === "this_month"){
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  }else if(period === "last_month"){
+    start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 1);
+  }else if(period === "30_days"){
+    start = new Date(now);
+    start.setDate(start.getDate() - 30);
+  }
+
+  return { start, end };
+}
+
+function getFilteredSellerSales(){
+  const period = document.getElementById("sellerSalesPeriod")?.value || "all";
+  const productId = document.getElementById("sellerSalesProduct")?.value || "all";
+  const { start, end } = getSellerSalesPeriodRange(period);
+
+  return sellerPurchaseRows
+    .filter(row => row.status === "paid")
+    .filter(row => productId === "all" || row.product_id === productId)
+    .filter(row => {
+      if(!start && !end) return true;
+      const date = new Date(row.paid_at || row.created_at);
+      if(Number.isNaN(date.getTime())) return false;
+      if(start && date < start) return false;
+      if(end && date >= end) return false;
+      return true;
+    })
+    .sort((a,b) => new Date(b.paid_at || b.created_at) - new Date(a.paid_at || a.created_at));
+}
+
+function populateSellerSalesProductFilter(){
+  const select = document.getElementById("sellerSalesProduct");
+  if(!select) return;
+
+  const currentValue = select.value || "all";
+  const options = sellerProducts
+    .slice()
+    .sort((a,b) => String(a.title).localeCompare(String(b.title), "ja"))
+    .map(product => `<option value="${escapeHtml(product.id)}">${escapeHtml(product.title)}</option>`)
+    .join("");
+
+  select.innerHTML = `<option value="all">すべての商品</option>${options}`;
+
+  if([...select.options].some(option => option.value === currentValue)){
+    select.value = currentValue;
+  }
+}
+
+function renderSellerMonthlySales(){
+  const container = document.getElementById("sellerMonthlySales");
+  if(!container) return;
+
+  const now = new Date();
+  const months = [];
+
+  for(let offset = 5; offset >= 0; offset -= 1){
+    const start = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - offset + 1, 1);
+    const gross = sellerPurchaseRows
+      .filter(row => row.status === "paid")
+      .filter(row => {
+        const date = new Date(row.paid_at || row.created_at);
+        return !Number.isNaN(date.getTime()) && date >= start && date < end;
+      })
+      .reduce((sum,row) => sum + Number(row.amount_jpy || 0), 0);
+
+    months.push({
+      label: `${start.getFullYear()}/${String(start.getMonth()+1).padStart(2,"0")}`,
+      gross
+    });
+  }
+
+  const maxGross = Math.max(0, ...months.map(month => month.gross));
+
+  container.innerHTML = months.map(month => {
+    const width = maxGross > 0 ? Math.max(0, Math.round((month.gross / maxGross) * 100)) : 0;
+    return `
+      <div class="seller-month-row">
+        <span class="seller-month-label">${month.label}</span>
+        <div class="seller-month-track"><div class="seller-month-bar" style="width:${width}%"></div></div>
+        <strong class="seller-month-amount">${formatPrice(month.gross)}</strong>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderSellerSalesDashboard(){
+  const history = document.getElementById("sellerSalesHistory");
+  if(!history) return;
+
+  populateSellerSalesProductFilter();
+
+  if(sellerSalesLoading){
+    history.innerHTML = '<div class="seller-sales-loading">売上を読み込んでいます…</div>';
+    return;
+  }
+
+  const rows = getFilteredSellerSales();
+  const gross = rows.reduce((sum,row) => sum + Number(row.amount_jpy || 0), 0);
+  const fees = rows.reduce((sum,row) => sum + Number(row.platform_fee_jpy || 0), 0);
+  const net = Math.max(0, gross - fees);
+
+  document.getElementById("sellerSalesCount").textContent = `${rows.length}件`;
+  document.getElementById("sellerSalesGross").textContent = formatPrice(gross);
+  document.getElementById("sellerSalesFees").textContent = formatPrice(fees);
+  document.getElementById("sellerSalesNet").textContent = formatPrice(net);
+  document.getElementById("sellerSalesResultCount").textContent = `${rows.length}件`;
+  document.getElementById("sellerSalesCsvButton").disabled = rows.length === 0;
+
+  renderSellerMonthlySales();
+
+  if(rows.length === 0){
+    history.innerHTML = '<div class="seller-sales-empty">条件に一致する販売履歴はありません。</div>';
+    return;
+  }
+
+  history.innerHTML = rows.map(row => {
+    const rowGross = Number(row.amount_jpy || 0);
+    const rowFee = Number(row.platform_fee_jpy || 0);
+    const rowNet = Math.max(0, rowGross - rowFee);
+    return `
+      <article class="seller-sale-row">
+        <div class="seller-sale-product">
+          <span>商品</span>
+          <strong>${escapeHtml(getSellerSalesProductTitle(row.product_id))}</strong>
+        </div>
+        <div class="seller-sale-date">
+          <span>決済日時</span>
+          <strong>${escapeHtml(formatPurchaseDate(row.paid_at || row.created_at))}</strong>
+        </div>
+        <div class="seller-sale-money">
+          <span>売上</span>
+          <strong>${formatPrice(rowGross)}</strong>
+        </div>
+        <div class="seller-sale-money">
+          <span>手数料</span>
+          <strong>−${formatPrice(rowFee)}</strong>
+        </div>
+        <div class="seller-sale-money net">
+          <span>受取見込</span>
+          <strong>${formatPrice(rowNet)}</strong>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadSellerSalesDashboard(){
+  if(!currentSession?.user){
+    sellerProducts = [];
+    sellerPurchaseRows = [];
+    renderSellerSalesDashboard();
+    return;
+  }
+
+  sellerSalesLoading = true;
+  renderSellerSalesDashboard();
+
+  const userId = currentSession.user.id;
+  const [productsResult, purchasesResult] = await Promise.all([
+    supabaseClient
+      .from("products")
+      .select("id, title, status, created_at")
+      .eq("seller_id", userId)
+      .order("created_at", { ascending: false }),
+    supabaseClient
+      .from("purchases")
+      .select("id, product_id, amount_jpy, platform_fee_jpy, status, created_at, paid_at")
+      .eq("seller_id", userId)
+      .order("paid_at", { ascending: false })
+  ]);
+
+  sellerSalesLoading = false;
+
+  if(productsResult.error || purchasesResult.error){
+    console.error("Seller sales load error:", productsResult.error || purchasesResult.error);
+    document.getElementById("sellerSalesHistory").innerHTML = `
+      <div class="seller-sales-empty">売上データを読み込めませんでした。<br>${escapeHtml((productsResult.error || purchasesResult.error).message)}</div>
+    `;
+    return;
+  }
+
+  sellerProducts = productsResult.data || [];
+  sellerPurchaseRows = purchasesResult.data || [];
+  renderSellerSalesDashboard();
+}
+
+async function openSellerSalesModal(){
+  if(!currentSession?.user){
+    showMessage("売上管理を見るにはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  const modal = document.getElementById("sellerSalesModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  await loadSellerSalesDashboard();
+}
+
+function closeSellerSalesModal(){
+  const modal = document.getElementById("sellerSalesModal");
+  if(!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+function escapeCsvValue(value){
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadSellerSalesCsv(){
+  const rows = getFilteredSellerSales();
+
+  if(rows.length === 0){
+    showMessage("出力できる販売履歴がありません。");
+    return;
+  }
+
+  const header = ["決済日時","商品名","売上","販売手数料","受取見込","状態"];
+  const body = rows.map(row => {
+    const gross = Number(row.amount_jpy || 0);
+    const fee = Number(row.platform_fee_jpy || 0);
+    return [
+      formatPurchaseDate(row.paid_at || row.created_at),
+      getSellerSalesProductTitle(row.product_id),
+      gross,
+      fee,
+      Math.max(0, gross-fee),
+      "決済済み"
+    ];
+  });
+
+  const csv = [header, ...body]
+    .map(columns => columns.map(escapeCsvValue).join(","))
+    .join("\r\n");
+  const blob = new Blob(["\ufeff", csv], { type:"text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const today = new Date().toISOString().slice(0,10);
+  link.href = url;
+  link.download = `シート市場_売上_${today}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showMessage("売上CSVを出力しました！");
+}
 
 function setSellerEditMessage(message, type = ""){
   const target = document.getElementById("sellerEditMessage");

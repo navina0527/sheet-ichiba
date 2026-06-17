@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=11" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
   <header class="site-header">
@@ -33,6 +33,10 @@
         <button id="sellerManagerHeaderButton" class="seller-manager-header-button" type="button" onclick="openSellerManagerModal()" aria-label="出品管理を開く" hidden>
           <span class="seller-manager-icon">管</span>
           <span class="seller-manager-label">出品管理</span>
+        </button>
+        <button id="sellerSalesHeaderButton" class="seller-sales-header-button" type="button" onclick="openSellerSalesModal()" aria-label="売上管理を開く" hidden>
+          <span class="seller-sales-icon">¥</span>
+          <span class="seller-sales-label">売上管理</span>
         </button>
         <button id="stripeConnectButton" class="btn btn-stripe-connect" type="button" onclick="startStripeOnboarding()" hidden>
           売上受取設定
@@ -184,6 +188,65 @@
     </div>
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
+
+  <div id="sellerSalesModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeSellerSalesModal()"></div>
+    <div class="modal-card seller-sales-modal-card" role="dialog" aria-modal="true" aria-labelledby="sellerSalesTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeSellerSalesModal()">×</button>
+
+      <div class="seller-sales-heading">
+        <div>
+          <p class="eyebrow">SALES DASHBOARD</p>
+          <h2 id="sellerSalesTitle" class="auth-title">売上管理</h2>
+          <p class="auth-description">販売履歴、手数料、受取見込を確認できます。</p>
+        </div>
+        <button id="sellerSalesCsvButton" class="btn btn-secondary" type="button" onclick="downloadSellerSalesCsv()">CSV出力</button>
+      </div>
+
+      <div class="seller-sales-filters">
+        <label>
+          <span>表示期間</span>
+          <select id="sellerSalesPeriod" onchange="renderSellerSalesDashboard()">
+            <option value="all">全期間</option>
+            <option value="this_month">今月</option>
+            <option value="last_month">先月</option>
+            <option value="30_days">直近30日</option>
+          </select>
+        </label>
+        <label>
+          <span>商品</span>
+          <select id="sellerSalesProduct" onchange="renderSellerSalesDashboard()">
+            <option value="all">すべての商品</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="seller-sales-stats-grid">
+        <div class="seller-sales-stat-card"><span>販売数</span><strong id="sellerSalesCount">0件</strong></div>
+        <div class="seller-sales-stat-card"><span>売上総額</span><strong id="sellerSalesGross">¥0</strong></div>
+        <div class="seller-sales-stat-card"><span>販売手数料</span><strong id="sellerSalesFees">¥0</strong></div>
+        <div class="seller-sales-stat-card accent"><span>受取見込</span><strong id="sellerSalesNet">¥0</strong></div>
+      </div>
+
+      <section class="seller-monthly-section">
+        <div class="seller-sales-section-title">
+          <strong>直近6か月の売上</strong>
+          <span>売上総額ベース</span>
+        </div>
+        <div id="sellerMonthlySales" class="seller-monthly-sales"></div>
+      </section>
+
+      <section class="seller-sales-history-section">
+        <div class="seller-sales-section-title">
+          <strong>販売履歴</strong>
+          <span id="sellerSalesResultCount">0件</span>
+        </div>
+        <div id="sellerSalesHistory" class="seller-sales-history">
+          <div class="seller-sales-loading">売上を読み込んでいます…</div>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <div id="sellerManagerModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeSellerManagerModal()"></div>
@@ -483,7 +546,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=11"></script>
-  <script src="app.js?v=11"></script>
+  <script src="config.js?v=12"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
