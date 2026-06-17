@@ -60,6 +60,43 @@ function escapeHtml(value){
     .replaceAll("'", "&#039;");
 }
 
+function normalizeUserText(value, maxLength = 500){
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function normalizeEmail(value){
+  return normalizeUserText(value, 320).toLowerCase();
+}
+
+function isValidEmail(value){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? ""));
+}
+
+function requireAllowedExternalUrl(value, allowedHosts){
+  let url;
+
+  try{
+    url = new URL(String(value ?? ""));
+  }catch(_error){
+    throw new Error("移動先URLが不正です。");
+  }
+
+  if(url.protocol !== "https:" || !allowedHosts.includes(url.hostname)){
+    throw new Error("許可されていない外部URLです。");
+  }
+
+  return url.toString();
+}
+
+function requireSupabaseDownloadUrl(value){
+  const supabaseHost = new URL(window.SHEET_ICHIBA_CONFIG.url).hostname;
+  return requireAllowedExternalUrl(value, [supabaseHost]);
+}
+
 function formatPrice(price){
   const amount = Number(price || 0);
   return amount === 0 ? "無料" : `¥${amount.toLocaleString("ja-JP")}`;
@@ -348,7 +385,7 @@ async function completeEmailConfirmation(){
 async function handleAuthSubmit(event){
   event.preventDefault();
 
-  const email = document.getElementById("authEmail").value.trim();
+  const email = normalizeEmail(document.getElementById("authEmail").value);
   const password = document.getElementById("authPassword").value;
   const submitButton = document.getElementById("authSubmitButton");
 
@@ -1181,14 +1218,14 @@ async function handleSellerLegalSubmit(event){
     return;
   }
 
-  const legalName = document.getElementById("sellerLegalName").value.trim();
-  const tradeName = document.getElementById("sellerTradeName").value.trim();
-  const contactEmail = document.getElementById("sellerContactEmail").value.trim();
-  const supportHours = document.getElementById("sellerSupportHours").value.trim();
+  const legalName = normalizeUserText(document.getElementById("sellerLegalName").value, 100);
+  const tradeName = normalizeUserText(document.getElementById("sellerTradeName").value, 100);
+  const contactEmail = normalizeEmail(document.getElementById("sellerContactEmail").value);
+  const supportHours = normalizeUserText(document.getElementById("sellerSupportHours").value, 100);
   const disclosureMethod = document.getElementById("sellerDisclosureMethod").value;
-  const postalCode = document.getElementById("sellerPostalCode").value.trim();
-  const address = document.getElementById("sellerAddress").value.trim();
-  const phone = document.getElementById("sellerPhone").value.trim();
+  const postalCode = normalizeUserText(document.getElementById("sellerPostalCode").value, 20);
+  const address = normalizeUserText(document.getElementById("sellerAddress").value, 250);
+  const phone = normalizeUserText(document.getElementById("sellerPhone").value, 30);
   const accuracyChecked = document.getElementById("sellerLegalAccuracy").checked;
 
   try{
@@ -1338,7 +1375,7 @@ async function openPublicSellerInfo(sellerId){
     </div>
     <div class="public-seller-info-row">
       <span>問い合わせ</span>
-      <a href="mailto:${escapeHtml(data.contact_email)}">${escapeHtml(data.contact_email)}</a>
+      <a href="mailto:${escapeHtml(isValidEmail(data.contact_email) ? data.contact_email : "")}">${escapeHtml(data.contact_email)}</a>
     </div>
     <div class="public-seller-info-row">
       <span>対応時間</span>
@@ -1625,7 +1662,7 @@ async function startCartCheckout(){
       throw new Error("Stripeの決済URLを取得できませんでした。");
     }
 
-    window.location.assign(data.url);
+    window.location.assign(requireAllowedExternalUrl(data.url, ["checkout.stripe.com"]));
   }catch(error){
     console.error("Cart checkout error:", error);
     showMessage(`カート決済を開始できませんでした：${error.message}`, 7000);
@@ -1773,7 +1810,7 @@ async function downloadPurchasedProduct(productId, button){
     }
 
     const link = document.createElement("a");
-    link.href = data.url;
+    link.href = requireSupabaseDownloadUrl(data.url);
     link.download = data.fileName || "";
     link.rel = "noopener";
     document.body.appendChild(link);
@@ -1872,7 +1909,7 @@ async function startDownload(){
     }
 
     const link = document.createElement("a");
-    link.href = data.url;
+    link.href = requireSupabaseDownloadUrl(data.url);
     link.download = data.fileName || "";
     link.rel = "noopener";
     document.body.appendChild(link);
@@ -2035,7 +2072,7 @@ async function startCheckout(){
       throw new Error("Stripeの決済URLを取得できませんでした。");
     }
 
-    window.location.assign(data.url);
+    window.location.assign(requireAllowedExternalUrl(data.url, ["checkout.stripe.com"]));
   }catch(error){
     console.error("Checkout start error:", error);
 
@@ -2258,7 +2295,9 @@ async function startStripeOnboarding(){
       throw new Error("Stripeの登録URLを取得できませんでした。");
     }
 
-    window.location.assign(data.url);
+    window.location.assign(
+      requireAllowedExternalUrl(data.url, ["connect.stripe.com", "dashboard.stripe.com"])
+    );
   }catch(error){
     console.error("Stripe onboarding error:", error);
     showMessage(`売上受取設定を開けませんでした：${error.message}`, 7000);
@@ -2832,11 +2871,11 @@ async function handleSellerEditSubmit(event){
     return;
   }
 
-  const title = document.getElementById("sellerEditProductTitle").value.trim();
+  const title = normalizeUserText(document.getElementById("sellerEditProductTitle").value, 100);
   const category = document.getElementById("sellerEditProductCategory").value;
   const price = Number(document.getElementById("sellerEditProductPrice").value);
   const status = document.getElementById("sellerEditProductStatus").value;
-  const description = document.getElementById("sellerEditProductDescription").value.trim();
+  const description = normalizeUserText(document.getElementById("sellerEditProductDescription").value, 2000);
   const previewFile = document.getElementById("sellerEditProductPreview").files[0];
   const excelFile = document.getElementById("sellerEditProductFile").files[0];
 
@@ -3108,10 +3147,10 @@ async function handleProductSubmit(event){
   const legalReady = await ensureSellerLegalProfile();
   if(!legalReady) return;
 
-  const title = document.getElementById("productTitle").value.trim();
+  const title = normalizeUserText(document.getElementById("productTitle").value, 100);
   const category = document.getElementById("productCategory").value;
   const price = Number(document.getElementById("productPrice").value);
-  const description = document.getElementById("productDescription").value.trim();
+  const description = normalizeUserText(document.getElementById("productDescription").value, 2000);
   const previewFile = document.getElementById("productPreview").files[0];
   const excelFile = document.getElementById("productFile").files[0];
 

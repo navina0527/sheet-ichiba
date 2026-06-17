@@ -1,17 +1,17 @@
-# シート市場 管理者追加アクセスパスワード対応版
+# シート市場 セキュリティ強化版 v20
 
-## 導入順
-1. Supabase Secretsへ`ADMIN_ACCESS_PASSWORD`を保存
-2. `01_admin-api-index-v5-access-password.ts`を既存`admin-api`へ上書き
-3. admin-apiのVerify JWTはOFFのまま
-4. `02_sheet-ichiba-admin-access-password-site-update.zip`をGitHubへ上書き
+追加内容:
+- ユーザー入力のUnicode正規化・制御文字除去・最大長制限
+- メールアドレス形式チェック
+- Stripe Checkout / Connectの移動先URLを許可リストで検証
+- SupabaseのダウンロードURLを許可リストで検証
+- Content Security PolicyとReferrer Policyを追加
+- 動的表示は既存のescapeHtmlを継続使用
 
-## 動作
-管理者画面は次の3段階で保護されます。
-
-1. 管理者アカウントでログイン
-2. 認証アプリによる二段階認証
-3. 管理者専用アクセスパスワード
-
-管理者アクセスパスワードはlocalStorageやsessionStorageへ保存せず、
-ページを再読み込みすると再入力が必要です。
+更新方法:
+1. ZIPを解凍
+2. GitHubのsheet-ichibaを開く
+3. Add file → Upload files
+4. 中のファイルを全部上書き
+5. Commit changes
+6. Ctrl＋Shift＋Rで強制更新
