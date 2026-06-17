@@ -20,6 +20,7 @@ let selectedProduct = null;
 let checkoutStarting = false;
 let downloadStarting = false;
 let paidProductIds = new Set();
+let paidPurchases = [];
 const CART_STORAGE_KEY = "sheetIchibaCartV1";
 const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
 let cartProductIds = [];
@@ -379,16 +380,21 @@ function refreshAuthUI(session){
   currentSession = session;
   const button = document.getElementById("authButton");
   const label = document.getElementById("authUserLabel");
+  const purchasedButton = document.getElementById("purchasedHeaderButton");
 
   if(session?.user){
     label.textContent = session.user.email || "ログイン中";
     label.hidden = false;
     button.textContent = "ログアウト";
+    purchasedButton.hidden = false;
   }else{
     label.textContent = "";
     label.hidden = true;
     button.textContent = "ログイン";
+    purchasedButton.hidden = true;
     paidProductIds = new Set();
+    paidPurchases = [];
+    updatePurchasedUI();
   }
 
   setStripeUI();
@@ -675,9 +681,149 @@ async function waitForPaidProducts(expectedProductIds){
   return false;
 }
 
+
+function formatPurchaseDate(value){
+  if(!value) return "購入日時不明";
+
+  const date = new Date(value);
+  if(Number.isNaN(date.getTime())) return "購入日時不明";
+
+  return new Intl.DateTimeFormat("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function updatePurchasedUI(){
+  const badge = document.getElementById("purchasedCountBadge");
+
+  if(badge){
+    badge.textContent = String(paidPurchases.length);
+  }
+
+  renderPurchasedProducts();
+}
+
+function renderPurchasedProducts(){
+  const container = document.getElementById("purchasedItems");
+  if(!container) return;
+
+  if(!currentSession?.user){
+    container.innerHTML = `
+      <div class="purchased-empty">
+        <strong>ログインが必要です。</strong>
+        <span>購入に使ったアカウントでログインしてください。</span>
+      </div>
+    `;
+    return;
+  }
+
+  if(paidPurchases.length === 0){
+    container.innerHTML = `
+      <div class="purchased-empty">
+        <strong>購入済みの商品はまだありません。</strong>
+        <span>購入が完了した商品はここに表示されます。</span>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = paidPurchases.map(purchase => {
+    const imageUrl = getPreviewUrl(purchase.previewImagePath);
+    const preview = imageUrl
+      ? `<img class="purchased-item-image" src="${escapeHtml(imageUrl)}" alt="">`
+      : `<div class="purchased-item-placeholder">Excel</div>`;
+
+    return `
+      <article class="purchased-item">
+        ${preview}
+        <div class="purchased-item-copy">
+          <span class="purchased-category">${escapeHtml(purchase.category || "Excel")}</span>
+          <h3>${escapeHtml(purchase.title || "購入済み商品")}</h3>
+          <div class="purchased-item-meta">
+            <span>購入日：${escapeHtml(formatPurchaseDate(purchase.paidAt))}</span>
+            <span>何度でも再ダウンロード可能</span>
+          </div>
+        </div>
+        <div class="purchased-item-action">
+          <span class="purchased-item-price">${formatPrice(purchase.priceJpy || 0)}</span>
+          <button class="btn btn-primary purchased-download-button" type="button" onclick="downloadPurchasedProduct('${escapeHtml(purchase.productId)}', this)">
+            Excelをダウンロード
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function openPurchasedModal(){
+  if(!currentSession?.user){
+    showMessage("購入済み商品を見るにはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  const modal = document.getElementById("purchasedModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  renderPurchasedProducts();
+  await loadPaidPurchases();
+}
+
+function closePurchasedModal(){
+  const modal = document.getElementById("purchasedModal");
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+async function downloadPurchasedProduct(productId, button){
+  if(!currentSession?.user) return;
+
+  const originalText = button?.textContent || "Excelをダウンロード";
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "準備中…";
+  }
+
+  try{
+    const data = await invokeDownloadPurchase(productId, "download");
+
+    if(!data?.url){
+      throw new Error("ダウンロードURLを取得できませんでした。");
+    }
+
+    const link = document.createElement("a");
+    link.href = data.url;
+    link.download = data.fileName || "";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    showMessage("Excelのダウンロードを開始しました！");
+  }catch(error){
+    console.error("Purchased download error:", error);
+    showMessage(`ダウンロードできませんでした：${error.message}`, 7000);
+  }finally{
+    if(button){
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
+}
+
 async function loadPaidPurchases(){
   if(!currentSession?.user){
     paidProductIds = new Set();
+    paidPurchases = [];
+    updatePurchasedUI();
 
     if(allProducts.length > 0){
       renderProducts();
@@ -689,8 +835,11 @@ async function loadPaidPurchases(){
   try{
     const data = await invokeDownloadPurchase("", "list");
     const productIds = Array.isArray(data?.productIds) ? data.productIds : [];
+    const purchases = Array.isArray(data?.purchases) ? data.purchases : [];
 
     paidProductIds = new Set(productIds);
+    paidPurchases = purchases;
+    updatePurchasedUI();
 
     if(allProducts.length > 0){
       renderProducts();
@@ -699,6 +848,7 @@ async function loadPaidPurchases(){
     return productIds;
   }catch(error){
     console.error("Paid purchases load error:", error);
+    showMessage("購入済み商品の読み込みに失敗しました。", 5000);
     return [];
   }
 }
@@ -1341,6 +1491,7 @@ document.addEventListener("keydown", event => {
     closeProductModal();
     closeProductDetail();
     closeCartModal();
+    closePurchasedModal();
   }
 });
 
@@ -1381,5 +1532,6 @@ document.addEventListener("keydown", event => {
 
   await loadProducts();
   updateCartUI();
+  updatePurchasedUI();
   await handleCheckoutReturn();
 })();
