@@ -1,13 +1,16 @@
-# シート市場 購入済み表示修正版 v8
+# シート市場 カート機能 v9
 
-購入済み商品の判定をブラウザから直接DBへ問い合わせる方式から、
-Edge Function `download-purchase`を通してサーバー側で判定する方式へ変更しました。
+## 内容
+- カートへ追加・削除
+- ヘッダーに商品点数表示
+- カート内容と合計金額
+- 最大8商品までまとめてStripe Checkout
+- 同じ出品者の商品だけまとめ買い
+- 決済後に各商品を購入済みへ変更
+- 購入者だけ各Excelをダウンロード
 
-## 必要な作業
-
-1. Supabaseの `download-purchase` をv2コードへ差し替えて再デプロイ
-2. このサイトZIPをGitHubへ上書き
-3. 購入者アカウントで再読み込み
-
-購入済みの商品には「購入済み」と表示され、商品を開くと
-「Excelをダウンロード」ボタンが表示されます。
+## 導入順
+1. `01_cart_migration.sql`をSupabase SQL Editorで実行
+2. `02_create-cart-checkout-index.ts`を`create-cart-checkout`としてデプロイ（Verify JWT ON）
+3. `03_stripe-webhook-index-v2.ts`を既存`stripe-webhook`へ上書き（Verify JWT OFF）
+4. `04_sheet-ichiba-cart-update.zip`をGitHubへ上書き

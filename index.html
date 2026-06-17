@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
   <header class="site-header">
@@ -20,6 +20,11 @@
       <nav class="nav">
         <a href="#products">商品を探す</a>
         <a href="#sell">出品する</a>
+        <button id="cartHeaderButton" class="cart-header-button" type="button" onclick="openCartModal()" aria-label="カートを開く">
+          <span class="cart-icon">🛒</span>
+          <span class="cart-label">カート</span>
+          <span id="cartCountBadge" class="cart-count-badge">0</span>
+        </button>
         <button id="stripeConnectButton" class="btn btn-stripe-connect" type="button" onclick="startStripeOnboarding()" hidden>
           売上受取設定
         </button>
@@ -171,6 +176,33 @@
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
 
+  <div id="cartModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeCartModal()"></div>
+    <div class="modal-card cart-modal-card" role="dialog" aria-modal="true" aria-labelledby="cartModalTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeCartModal()">×</button>
+
+      <p class="eyebrow">SHOPPING CART</p>
+      <h2 id="cartModalTitle" class="auth-title">カート</h2>
+      <p class="auth-description">同じ出品者の商品を最大8点までまとめて購入できます。</p>
+
+      <div id="cartItems" class="cart-items"></div>
+
+      <div class="cart-summary">
+        <div>
+          <span>合計</span>
+          <strong id="cartTotal">¥0</strong>
+        </div>
+        <button id="cartCheckoutButton" class="btn btn-primary" type="button" onclick="startCartCheckout()">
+          まとめて購入する
+        </button>
+      </div>
+
+      <button id="cartClearButton" class="cart-clear-button" type="button" onclick="clearCart()">
+        カートを空にする
+      </button>
+    </div>
+  </div>
+
   <div id="productDetailModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeProductDetail()"></div>
     <div class="modal-card product-detail-card" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
@@ -193,9 +225,14 @@
             <span class="detail-price-label">販売価格</span>
             <strong id="detailPrice" class="detail-price"></strong>
           </div>
-          <button id="detailBuyButton" class="btn btn-primary detail-buy-button" type="button" onclick="startCheckout()">
-            購入する
-          </button>
+          <div class="detail-action-buttons">
+            <button id="detailCartButton" class="btn btn-secondary detail-cart-button" type="button" onclick="toggleSelectedProductInCart()">
+              カートに入れる
+            </button>
+            <button id="detailBuyButton" class="btn btn-primary detail-buy-button" type="button" onclick="startCheckout()">
+              今すぐ購入
+            </button>
+          </div>
         </div>
 
         <p id="detailPurchaseNote" class="detail-purchase-note">
@@ -313,7 +350,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=8"></script>
-  <script src="app.js?v=8"></script>
+  <script src="config.js?v=9"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

@@ -20,6 +20,10 @@ let selectedProduct = null;
 let checkoutStarting = false;
 let downloadStarting = false;
 let paidProductIds = new Set();
+const CART_STORAGE_KEY = "sheetIchibaCartV1";
+const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
+let cartProductIds = [];
+let cartCheckoutStarting = false;
 
 function showMessage(message, duration = 3200){
   const toast = document.getElementById("toast");
@@ -91,8 +95,20 @@ function renderProducts(){
           <p>${escapeHtml(description)}</p>
           <div class="product-meta">
             <strong class="${Number(product.price_jpy) === 0 ? "price-free" : ""}">${formatPrice(product.price_jpy)}</strong>
-            <span class="${paidProductIds.has(product.id) ? "purchased-label" : ""}">
-              ${paidProductIds.has(product.id) ? "購入済み" : "新着"}
+            <span class="${
+              paidProductIds.has(product.id)
+                ? "purchased-label"
+                : cartProductIds.includes(product.id)
+                  ? "cart-product-label"
+                  : ""
+            }">
+              ${
+                paidProductIds.has(product.id)
+                  ? "購入済み"
+                  : cartProductIds.includes(product.id)
+                    ? "カート内"
+                    : "新着"
+              }
             </span>
           </div>
           <span class="seller-name">出品者：${escapeHtml(sellerName)}</span>
@@ -381,6 +397,284 @@ function refreshAuthUI(session){
 
 
 
+
+function loadCartFromStorage(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || "[]");
+    cartProductIds = Array.isArray(saved)
+      ? [...new Set(saved.map(value => String(value)).filter(Boolean))].slice(0, 8)
+      : [];
+  }catch(_error){
+    cartProductIds = [];
+  }
+
+  updateCartUI();
+}
+
+function saveCart(){
+  localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartProductIds));
+  updateCartUI();
+
+  if(allProducts.length > 0){
+    renderProducts();
+  }
+}
+
+function getCartProducts(){
+  const productsById = new Map(allProducts.map(product => [product.id, product]));
+  return cartProductIds
+    .map(productId => productsById.get(productId))
+    .filter(Boolean);
+}
+
+function updateCartUI(){
+  const badge = document.getElementById("cartCountBadge");
+  if(badge){
+    badge.textContent = String(cartProductIds.length);
+  }
+
+  renderCart();
+}
+
+function renderCart(){
+  const container = document.getElementById("cartItems");
+  const totalElement = document.getElementById("cartTotal");
+  const checkoutButton = document.getElementById("cartCheckoutButton");
+  const clearButton = document.getElementById("cartClearButton");
+
+  if(!container || !totalElement || !checkoutButton || !clearButton) return;
+
+  const products = getCartProducts();
+
+  if(products.length !== cartProductIds.length && allProducts.length > 0){
+    cartProductIds = products.map(product => product.id);
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartProductIds));
+  }
+
+  if(products.length === 0){
+    container.innerHTML = '<div class="cart-empty">カートは空です。</div>';
+    totalElement.textContent = "¥0";
+    checkoutButton.disabled = true;
+    clearButton.hidden = true;
+    return;
+  }
+
+  const total = products.reduce(
+    (sum, product) => sum + Number(product.price_jpy || 0),
+    0
+  );
+
+  container.innerHTML = products.map(product => {
+    const imageUrl = getPreviewUrl(product.preview_image_path);
+    const preview = imageUrl
+      ? `<img class="cart-item-image" src="${escapeHtml(imageUrl)}" alt="">`
+      : `<div class="cart-item-placeholder">Excel</div>`;
+
+    return `
+      <div class="cart-item">
+        ${preview}
+        <div class="cart-item-copy">
+          <strong>${escapeHtml(product.title)}</strong>
+          <span>${escapeHtml(product.profiles?.display_name || "出品者")}</span>
+        </div>
+        <div class="cart-item-side">
+          <span class="cart-item-price">${formatPrice(product.price_jpy)}</span>
+          <button class="cart-remove-button" type="button" onclick="removeFromCart('${escapeHtml(product.id)}')">削除</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  totalElement.textContent = formatPrice(total);
+  checkoutButton.disabled = false;
+  clearButton.hidden = false;
+}
+
+function openCartModal(){
+  renderCart();
+  const modal = document.getElementById("cartModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+}
+
+function closeCartModal(){
+  const modal = document.getElementById("cartModal");
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+function clearCart(){
+  cartProductIds = [];
+  saveCart();
+  showMessage("カートを空にしました。");
+}
+
+function removeFromCart(productId){
+  cartProductIds = cartProductIds.filter(id => id !== productId);
+  saveCart();
+
+  if(selectedProduct?.id === productId){
+    openProductDetail(productId);
+  }
+}
+
+function canAddProductToCart(product){
+  if(!product){
+    return "商品情報を取得できませんでした。";
+  }
+
+  if(paidProductIds.has(product.id)){
+    return "この商品は購入済みです。";
+  }
+
+  if(currentSession?.user?.id === product.seller_id){
+    return "自分の商品はカートに入れられません。";
+  }
+
+  if(Number(product.price_jpy) <= 0){
+    return "無料商品は現在カートに対応していません。";
+  }
+
+  if(cartProductIds.length >= 8 && !cartProductIds.includes(product.id)){
+    return "カートに入れられる商品は8点までです。";
+  }
+
+  const cartProducts = getCartProducts();
+
+  if(
+    cartProducts.length > 0 &&
+    cartProducts[0].seller_id !== product.seller_id
+  ){
+    return "別の出品者の商品は同じカートに入れられません。先に購入するか、カートを空にしてください。";
+  }
+
+  return "";
+}
+
+function toggleSelectedProductInCart(){
+  if(!selectedProduct) return;
+
+  if(cartProductIds.includes(selectedProduct.id)){
+    removeFromCart(selectedProduct.id);
+    showMessage("カートから削除しました。");
+    return;
+  }
+
+  const errorMessage = canAddProductToCart(selectedProduct);
+
+  if(errorMessage){
+    showMessage(errorMessage, 6000);
+    return;
+  }
+
+  cartProductIds.push(selectedProduct.id);
+  saveCart();
+  openProductDetail(selectedProduct.id);
+  showMessage("カートに追加しました！");
+}
+
+async function invokeCreateCartCheckout(productIds){
+  const { data, error } = await supabaseClient.functions.invoke(
+    "create-cart-checkout",
+    {
+      body: { productIds }
+    }
+  );
+
+  if(error){
+    let message = error.message || "カート決済を呼び出せませんでした。";
+
+    try{
+      const contextBody = await error.context?.json();
+      if(contextBody?.error) message = contextBody.error;
+    }catch(_ignored){}
+
+    throw new Error(message);
+  }
+
+  if(data?.error){
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+async function startCartCheckout(){
+  if(cartCheckoutStarting || cartProductIds.length === 0) return;
+
+  if(!currentSession?.user){
+    closeCartModal();
+    showMessage("まとめて購入するにはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  const products = getCartProducts();
+
+  if(products.length !== cartProductIds.length){
+    showMessage("カートの商品情報を更新しました。もう一度確認してください。");
+    cartProductIds = products.map(product => product.id);
+    saveCart();
+    return;
+  }
+
+  const purchasedInCart = cartProductIds.filter(id => paidProductIds.has(id));
+
+  if(purchasedInCart.length > 0){
+    cartProductIds = cartProductIds.filter(id => !paidProductIds.has(id));
+    saveCart();
+    showMessage("購入済みの商品をカートから除外しました。");
+    return;
+  }
+
+  cartCheckoutStarting = true;
+  const button = document.getElementById("cartCheckoutButton");
+  button.disabled = true;
+  button.textContent = "決済画面を準備中…";
+
+  try{
+    sessionStorage.setItem(
+      PENDING_CART_KEY,
+      JSON.stringify(cartProductIds)
+    );
+
+    const data = await invokeCreateCartCheckout(cartProductIds);
+
+    if(!data?.url){
+      throw new Error("Stripeの決済URLを取得できませんでした。");
+    }
+
+    window.location.assign(data.url);
+  }catch(error){
+    console.error("Cart checkout error:", error);
+    showMessage(`カート決済を開始できませんでした：${error.message}`, 7000);
+    button.disabled = false;
+    button.textContent = "まとめて購入する";
+    cartCheckoutStarting = false;
+  }
+}
+
+async function waitForPaidProducts(expectedProductIds){
+  const expected = [...new Set(expectedProductIds || [])];
+
+  for(let attempt = 0; attempt < 10; attempt += 1){
+    await loadPaidPurchases();
+
+    if(
+      expected.length === 0 ||
+      expected.every(productId => paidProductIds.has(productId))
+    ){
+      return true;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+
+  return false;
+}
+
 async function loadPaidPurchases(){
   if(!currentSession?.user){
     paidProductIds = new Set();
@@ -474,20 +768,6 @@ async function startDownload(){
   }
 }
 
-async function waitForPaidPurchase(){
-  for(let attempt = 0; attempt < 8; attempt += 1){
-    const purchases = await loadPaidPurchases();
-
-    if(purchases.length > 0){
-      return true;
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
-  }
-
-  return false;
-}
-
 function findProductById(productId){
   return allProducts.find(product => product.id === productId) || null;
 }
@@ -517,33 +797,44 @@ function openProductDetail(productId){
   document.getElementById("detailPrice").textContent = formatPrice(product.price_jpy);
 
   const buyButton = document.getElementById("detailBuyButton");
+  const cartButton = document.getElementById("detailCartButton");
   const note = document.getElementById("detailPurchaseNote");
   const isOwnProduct = currentSession?.user?.id === product.seller_id;
   const isFree = Number(product.price_jpy) === 0;
   const isPurchased = paidProductIds.has(product.id);
+  const isInCart = cartProductIds.includes(product.id);
 
   buyButton.classList.toggle("own-product", Boolean(isOwnProduct));
   buyButton.classList.toggle("download-product", Boolean(isPurchased));
   buyButton.disabled = false;
+  buyButton.hidden = false;
   buyButton.setAttribute("onclick", isPurchased ? "startDownload()" : "startCheckout()");
+
+  cartButton.hidden = false;
+  cartButton.disabled = false;
+  cartButton.classList.toggle("in-cart", isInCart);
+  cartButton.textContent = isInCart ? "カートから削除" : "カートに入れる";
 
   if(isPurchased){
     buyButton.textContent = "Excelをダウンロード";
+    cartButton.hidden = true;
     note.textContent = "購入済みの商品です。何度でもダウンロードできます。";
   }else if(isOwnProduct){
     buyButton.textContent = "自分の商品です";
     buyButton.disabled = true;
+    cartButton.hidden = true;
     note.textContent = "自分で出品した商品は購入できません。";
   }else if(isFree){
     buyButton.textContent = "無料で取得";
     buyButton.disabled = true;
+    cartButton.hidden = true;
     note.textContent = "無料商品の取得機能は次の段階で追加します。";
   }else if(!currentSession?.user){
     buyButton.textContent = "ログインして購入";
-    note.textContent = "購入にはログインが必要です。";
+    note.textContent = "カートへの追加はできます。購入時にログインが必要です。";
   }else{
-    buyButton.textContent = "購入する";
-    note.textContent = "決済はStripeのテスト画面で行います。";
+    buyButton.textContent = "今すぐ購入";
+    note.textContent = "今すぐ購入、またはカートでまとめ買いできます。";
   }
 
   const modal = document.getElementById("productDetailModal");
@@ -640,6 +931,7 @@ async function handleCheckoutReturn(){
   window.history.replaceState({}, document.title, cleanUrl);
 
   if(checkoutResult === "cancel"){
+    sessionStorage.removeItem(PENDING_CART_KEY);
     showMessage("購入をキャンセルしました。", 5000);
     return;
   }
@@ -647,11 +939,31 @@ async function handleCheckoutReturn(){
   if(checkoutResult === "success"){
     showMessage("支払い完了を確認しています…", 5000);
 
-    const confirmed = await waitForPaidPurchase();
+    let expectedProductIds = [];
+
+    try{
+      const saved = JSON.parse(
+        sessionStorage.getItem(PENDING_CART_KEY) || "[]"
+      );
+      expectedProductIds = Array.isArray(saved) ? saved : [];
+    }catch(_error){
+      expectedProductIds = [];
+    }
+
+    const confirmed = await waitForPaidProducts(expectedProductIds);
 
     if(confirmed){
+      if(expectedProductIds.length > 0){
+        cartProductIds = cartProductIds.filter(
+          id => !expectedProductIds.includes(id)
+        );
+        saveCart();
+      }
+
+      sessionStorage.removeItem(PENDING_CART_KEY);
+
       showMessage(
-        "購入が完了しました！商品を開いてExcelをダウンロードできます。",
+        "購入が完了しました！購入済み商品からダウンロードできます。",
         7000
       );
     }else{
@@ -1028,10 +1340,13 @@ document.addEventListener("keydown", event => {
     closeAuthModal();
     closeProductModal();
     closeProductDetail();
+    closeCartModal();
   }
 });
 
 (async function initializeApp(){
+  loadCartFromStorage();
+
   const callbackSession = await completeEmailConfirmation();
   if(callbackSession){
     refreshAuthUI(callbackSession);
@@ -1065,5 +1380,6 @@ document.addEventListener("keydown", event => {
   }
 
   await loadProducts();
+  updateCartUI();
   await handleCheckoutReturn();
 })();
