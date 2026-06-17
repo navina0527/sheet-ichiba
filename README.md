@@ -1,13 +1,12 @@
-# シート市場 管理者判定修正版
+# シート市場 ログインロック対応版
 
-管理者画面を開く前の権限確認を、admin-api経由ではなく
-admin_usersテーブルの本人向けRLSで直接確認するよう修正しました。
+- 30分以内にログインを10回失敗すると30分間ロック
+- 成功時は失敗回数をリセット
+- メールアドレスはSHA-256ハッシュで保存
+- login_securityテーブルはブラウザから直接アクセス不可
 
-## 更新方法
-1. ZIPを解凍
-2. GitHubのsheet-ichibaを開く
-3. Add file → Upload files
-4. 中のファイルをすべて上書き
-5. Commit changes
-6. サイトでCtrl＋Shift＋R
-7. 一度ログアウトして管理者アカウントで再ログイン
+## 導入順
+1. 01_login_lock.sqlをSupabase SQL Editorで実行
+2. 02_secure-login-index.tsをsecure-loginとして新規デプロイ
+3. Verify JWTはOFF
+4. 03_sheet-ichiba-login-lock-site-update.zipをGitHubへ上書き

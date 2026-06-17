@@ -253,6 +253,9 @@ function translateAuthError(message){
   if(text.includes("Email not confirmed")) return "確認メール内のリンクを押して、メール確認を完了してください。";
   if(text.includes("Unable to validate email address")) return "メールアドレスの形式を確認してください。";
   if(text.includes("expired")) return "確認リンクの期限が切れています。もう一度新規登録してください。";
+  if(text.includes("残り") || text.includes("ロック")){
+    return text;
+  }
   return `処理できませんでした：${text}`;
 }
 
@@ -378,8 +381,47 @@ async function handleAuthSubmit(event){
         setAuthMessage("確認メールを送りました。メール内のリンクを押すと、自動でログインします。", "success");
       }
     }else{
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if(error) throw error;
+      const { data, error } = await supabaseClient.functions.invoke(
+        "secure-login",
+        {
+          body: { email, password }
+        }
+      );
+
+      if(error){
+        let message = error.message || "ログインできませんでした。";
+
+        try{
+          const contextBody = await error.context?.json();
+
+          if(contextBody?.error){
+            message = contextBody.error;
+          }else if(
+            Number.isInteger(contextBody?.remainingAttempts)
+          ){
+            message =
+              `メールアドレスかパスワードが違います。残り${contextBody.remainingAttempts}回です。`;
+          }
+        }catch(_ignored){}
+
+        throw new Error(message);
+      }
+
+      if(data?.error){
+        throw new Error(data.error);
+      }
+
+      if(!data?.accessToken || !data?.refreshToken){
+        throw new Error("ログイン情報を取得できませんでした。");
+      }
+
+      const { error: sessionError } = await supabaseClient.auth.setSession({
+        access_token: data.accessToken,
+        refresh_token: data.refreshToken
+      });
+
+      if(sessionError) throw sessionError;
+
       setAuthMessage("ログインしました。", "success");
       setTimeout(closeAuthModal, 600);
     }
