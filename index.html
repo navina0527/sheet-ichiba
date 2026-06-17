@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
   <header class="site-header">
@@ -42,6 +42,10 @@
           <span class="seller-legal-icon">法</span>
           <span class="seller-legal-label">販売者情報</span>
           <span id="sellerLegalStatusBadge" class="seller-legal-status-badge">未設定</span>
+        </button>
+        <button id="adminHeaderButton" class="admin-header-button" type="button" onclick="openAdminModal()" aria-label="管理者画面を開く" hidden>
+          <span class="admin-header-icon">管</span>
+          <span>管理者</span>
         </button>
         <button id="stripeConnectButton" class="btn btn-stripe-connect" type="button" onclick="startStripeOnboarding()" hidden>
           売上受取設定
@@ -194,6 +198,39 @@
     </div>
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
+
+  <div id="adminModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeAdminModal()"></div>
+    <div class="modal-card admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeAdminModal()">×</button>
+
+      <div class="admin-heading">
+        <div>
+          <p class="eyebrow">ADMIN DASHBOARD</p>
+          <h2 id="adminModalTitle" class="auth-title">管理者画面</h2>
+          <p class="auth-description">サイト全体の商品・ユーザー・決済を確認できます。</p>
+        </div>
+        <button id="adminReloadButton" class="btn btn-secondary" type="button" onclick="loadAdminDashboard()">再読み込み</button>
+      </div>
+
+      <div id="adminSummary" class="admin-summary"></div>
+
+      <div class="admin-tabs" role="tablist">
+        <button id="adminProductsTab" class="admin-tab active" type="button" onclick="setAdminTab('products')">商品</button>
+        <button id="adminUsersTab" class="admin-tab" type="button" onclick="setAdminTab('users')">ユーザー</button>
+        <button id="adminPurchasesTab" class="admin-tab" type="button" onclick="setAdminTab('purchases')">購入履歴</button>
+      </div>
+
+      <div class="admin-filter-row">
+        <input id="adminSearchInput" type="search" placeholder="商品名・メールアドレス・購入IDで検索" oninput="renderAdminDashboard()">
+      </div>
+
+      <div id="adminContent" class="admin-content">
+        <div class="admin-loading">管理データを読み込んでいます…</div>
+      </div>
+      <p id="adminMessage" class="auth-message" aria-live="polite"></p>
+    </div>
+  </div>
 
   <div id="sellerSalesModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeSellerSalesModal()"></div>
@@ -665,7 +702,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=15"></script>
-  <script src="app.js?v=15"></script>
+  <script src="config.js?v=16"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

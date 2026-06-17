@@ -28,6 +28,10 @@ let sellerManagementLoading = false;
 let sellerSalesLoading = false;
 let sellerLegalProfile = null;
 let sellerLegalLoading = false;
+let isPlatformAdmin = false;
+let adminDashboardData = null;
+let adminLoading = false;
+let adminActiveTab = "products";
 const CART_STORAGE_KEY = "sheetIchibaCartV1";
 const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
 let cartProductIds = [];
@@ -408,6 +412,7 @@ function refreshAuthUI(session){
   const sellerManagerButton = document.getElementById("sellerManagerHeaderButton");
   const sellerSalesButton = document.getElementById("sellerSalesHeaderButton");
   const sellerLegalButton = document.getElementById("sellerLegalHeaderButton");
+  const adminButton = document.getElementById("adminHeaderButton");
 
   if(session?.user){
     label.textContent = session.user.email || "ログイン中";
@@ -417,6 +422,7 @@ function refreshAuthUI(session){
     sellerManagerButton.hidden = false;
     sellerSalesButton.hidden = false;
     sellerLegalButton.hidden = false;
+    adminButton.hidden = !isPlatformAdmin;
   }else{
     label.textContent = "";
     label.hidden = true;
@@ -425,6 +431,9 @@ function refreshAuthUI(session){
     sellerManagerButton.hidden = true;
     sellerSalesButton.hidden = true;
     sellerLegalButton.hidden = true;
+    adminButton.hidden = true;
+    isPlatformAdmin = false;
+    adminDashboardData = null;
     paidProductIds = new Set();
     paidPurchases = [];
     sellerProducts = [];
@@ -438,6 +447,7 @@ function refreshAuthUI(session){
     closeSellerSalesModal();
     closeSellerLegalModal();
     closePublicSellerInfoModal();
+    closeAdminModal();
   }
 
   updateSellerLegalHeader();
@@ -448,6 +458,256 @@ function refreshAuthUI(session){
 
 
 
+
+
+function setAdminMessage(message, type = ""){
+  const target = document.getElementById("adminMessage");
+  if(!target) return;
+  target.textContent = message;
+  target.className = `auth-message ${type}`.trim();
+}
+
+async function invokeAdminApi(action, payload = {}){
+  const { data, error } = await supabaseClient.functions.invoke("admin-api", {
+    body: { action, ...payload }
+  });
+
+  if(error){
+    let message = error.message || "管理者処理を呼び出せませんでした。";
+    try{
+      const contextBody = await error.context?.json();
+      if(contextBody?.error) message = contextBody.error;
+    }catch(_ignored){}
+    throw new Error(message);
+  }
+
+  if(data?.error) throw new Error(data.error);
+  return data;
+}
+
+async function checkAdminStatus(){
+  const button = document.getElementById("adminHeaderButton");
+
+  if(!currentSession?.user){
+    isPlatformAdmin = false;
+    if(button) button.hidden = true;
+    return false;
+  }
+
+  try{
+    const data = await invokeAdminApi("status");
+    isPlatformAdmin = Boolean(data?.isAdmin);
+  }catch(error){
+    isPlatformAdmin = false;
+    console.log("Admin status:", error.message);
+  }
+
+  if(button) button.hidden = !isPlatformAdmin;
+  return isPlatformAdmin;
+}
+
+async function openAdminModal(){
+  if(!currentSession?.user){
+    openAuthModal("login");
+    return;
+  }
+
+  if(!isPlatformAdmin){
+    const allowed = await checkAdminStatus();
+    if(!allowed){
+      showMessage("管理者権限がありません。");
+      return;
+    }
+  }
+
+  const modal = document.getElementById("adminModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  setAdminMessage("");
+  await loadAdminDashboard();
+}
+
+function closeAdminModal(){
+  const modal = document.getElementById("adminModal");
+  if(!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  setAdminMessage("");
+  syncBodyModalState();
+}
+
+async function loadAdminDashboard(){
+  if(!isPlatformAdmin || adminLoading) return;
+
+  adminLoading = true;
+  const content = document.getElementById("adminContent");
+  const reload = document.getElementById("adminReloadButton");
+  if(content) content.innerHTML = '<div class="admin-loading">管理データを読み込んでいます…</div>';
+  if(reload){ reload.disabled = true; reload.textContent = "読み込み中…"; }
+
+  try{
+    adminDashboardData = await invokeAdminApi("dashboard");
+    renderAdminDashboard();
+  }catch(error){
+    console.error("Admin dashboard error:", error);
+    if(content) content.innerHTML = `<div class="admin-empty">${escapeHtml(error.message)}</div>`;
+  }finally{
+    adminLoading = false;
+    if(reload){ reload.disabled = false; reload.textContent = "再読み込み"; }
+  }
+}
+
+function setAdminTab(tab){
+  adminActiveTab = tab;
+  ["products", "users", "purchases"].forEach(name => {
+    document.getElementById(`admin${name[0].toUpperCase()}${name.slice(1)}Tab`)
+      ?.classList.toggle("active", name === tab);
+  });
+  renderAdminDashboard();
+}
+
+function formatAdminDate(value){
+  if(!value) return "－";
+  return new Date(value).toLocaleString("ja-JP", {
+    year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"
+  });
+}
+
+function renderAdminSummary(){
+  const target = document.getElementById("adminSummary");
+  const summary = adminDashboardData?.summary;
+  if(!target || !summary){ if(target) target.innerHTML = ""; return; }
+
+  const cards = [
+    ["登録ユーザー", `${summary.users}人`],
+    ["利用停止", `${summary.suspendedUsers}人`],
+    ["公開商品", `${summary.publishedProducts}/${summary.products}件`],
+    ["支払済み", `${summary.paidOrders}件`],
+    ["総売上", formatPrice(summary.grossRevenue)],
+    ["手数料売上", formatPrice(summary.platformFees)]
+  ];
+
+  target.innerHTML = cards.map(([label, value]) => `
+    <div class="admin-summary-card"><span>${label}</span><strong>${value}</strong></div>
+  `).join("");
+}
+
+function renderAdminDashboard(){
+  renderAdminSummary();
+  const content = document.getElementById("adminContent");
+  if(!content) return;
+  if(!adminDashboardData){
+    content.innerHTML = '<div class="admin-loading">管理データを読み込んでいます…</div>';
+    return;
+  }
+
+  const search = document.getElementById("adminSearchInput")?.value.trim().toLowerCase() || "";
+  if(adminActiveTab === "users") return renderAdminUsers(content, search);
+  if(adminActiveTab === "purchases") return renderAdminPurchases(content, search);
+  return renderAdminProducts(content, search);
+}
+
+function renderAdminProducts(content, search){
+  const rows = (adminDashboardData.products || []).filter(item =>
+    !search || `${item.title} ${item.category} ${item.seller_email} ${item.seller_name} ${item.id}`.toLowerCase().includes(search)
+  );
+
+  if(rows.length === 0){ content.innerHTML = '<div class="admin-empty">該当する商品がありません。</div>'; return; }
+  content.innerHTML = `<div class="admin-table-wrap"><table class="admin-table">
+    <thead><tr><th>商品</th><th>出品者</th><th>価格</th><th>状態</th><th>登録日</th><th>操作</th></tr></thead>
+    <tbody>${rows.map(item => `
+      <tr>
+        <td><span class="admin-primary">${escapeHtml(item.title)}</span><span class="admin-sub">${escapeHtml(item.id)}</span></td>
+        <td>${escapeHtml(item.seller_name || item.seller_email || "不明")}<span class="admin-sub">${escapeHtml(item.seller_email || "")}</span></td>
+        <td>${formatPrice(item.price_jpy)}</td>
+        <td><span class="admin-status ${item.status}">${item.status === "published" ? "公開中" : "非公開"}</span>${item.moderation_note ? `<span class="admin-sub">${escapeHtml(item.moderation_note)}</span>` : ""}</td>
+        <td>${formatAdminDate(item.created_at)}</td>
+        <td><div class="admin-actions">
+          <button class="admin-action-button ${item.status === "published" ? "danger" : "safe"}" type="button" onclick="adminToggleProduct('${escapeHtml(item.id)}','${item.status === "published" ? "draft" : "published"}')">${item.status === "published" ? "強制非公開" : "再公開"}</button>
+        </div></td>
+      </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+function renderAdminUsers(content, search){
+  const rows = (adminDashboardData.users || []).filter(item =>
+    !search || `${item.email} ${item.display_name} ${item.id} ${item.suspension_reason}`.toLowerCase().includes(search)
+  );
+
+  if(rows.length === 0){ content.innerHTML = '<div class="admin-empty">該当するユーザーがいません。</div>'; return; }
+  content.innerHTML = `<div class="admin-table-wrap"><table class="admin-table">
+    <thead><tr><th>ユーザー</th><th>利用状態</th><th>商品/購入/販売</th><th>登録日</th><th>最終ログイン</th><th>操作</th></tr></thead>
+    <tbody>${rows.map(item => `
+      <tr>
+        <td><span class="admin-primary">${escapeHtml(item.display_name || item.email || "名称未設定")}</span><span class="admin-sub">${escapeHtml(item.email || item.id)}</span></td>
+        <td><span class="admin-status ${item.is_suspended ? "suspended" : "active"}">${item.is_suspended ? "利用停止" : "利用中"}</span>${item.is_admin ? '<span class="admin-sub">管理者</span>' : ""}${item.suspension_reason ? `<span class="admin-sub">${escapeHtml(item.suspension_reason)}</span>` : ""}</td>
+        <td>${item.product_count} / ${item.purchase_count} / ${item.sales_count}</td>
+        <td>${formatAdminDate(item.created_at)}</td>
+        <td>${formatAdminDate(item.last_sign_in_at)}</td>
+        <td><div class="admin-actions">${item.is_admin || item.id === adminDashboardData.currentAdminId ? "－" : `
+          <button class="admin-action-button ${item.is_suspended ? "safe" : "danger"}" type="button" onclick="adminToggleUser('${escapeHtml(item.id)}',${!item.is_suspended})">${item.is_suspended ? "停止解除" : "利用停止"}</button>`}</div></td>
+      </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+function renderAdminPurchases(content, search){
+  const rows = (adminDashboardData.purchases || []).filter(item =>
+    !search || `${item.id} ${item.product_title} ${item.buyer_email} ${item.seller_email} ${item.status}`.toLowerCase().includes(search)
+  );
+
+  if(rows.length === 0){ content.innerHTML = '<div class="admin-empty">該当する購入履歴がありません。</div>'; return; }
+  content.innerHTML = `<div class="admin-table-wrap"><table class="admin-table">
+    <thead><tr><th>商品</th><th>購入者</th><th>出品者</th><th>金額</th><th>手数料</th><th>状態</th><th>日時</th></tr></thead>
+    <tbody>${rows.map(item => `
+      <tr>
+        <td><span class="admin-primary">${escapeHtml(item.product_title)}</span><span class="admin-sub">${escapeHtml(item.id)}</span></td>
+        <td>${escapeHtml(item.buyer_email || "不明")}</td>
+        <td>${escapeHtml(item.seller_email || "不明")}</td>
+        <td>${formatPrice(item.amount_jpy)}</td>
+        <td>${formatPrice(item.platform_fee_jpy)}</td>
+        <td><span class="admin-status ${item.status}">${escapeHtml(item.status)}</span></td>
+        <td>${formatAdminDate(item.paid_at || item.created_at)}</td>
+      </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+async function adminToggleProduct(productId, status){
+  const label = status === "draft" ? "強制非公開" : "再公開";
+  if(!window.confirm(`この商品を${label}にしますか？`)) return;
+
+  let note = "";
+  if(status === "draft"){
+    note = window.prompt("非公開にする理由を入力してください。", "内容確認のため管理者が公開停止") || "";
+    if(!note) return;
+  }
+
+  try{
+    await invokeAdminApi("set-product-status", { productId, status, note });
+    showMessage(`商品を${label}にしました。`);
+    await Promise.all([loadAdminDashboard(), loadProducts()]);
+  }catch(error){
+    setAdminMessage(error.message, "error");
+  }
+}
+
+async function adminToggleUser(userId, suspended){
+  let reason = "";
+  if(suspended){
+    reason = window.prompt("利用停止理由を入力してください。", "利用規約違反の確認中") || "";
+    if(!reason) return;
+  }else if(!window.confirm("このユーザーの利用停止を解除しますか？")){
+    return;
+  }
+
+  try{
+    await invokeAdminApi("set-user-suspension", { userId, suspended, reason });
+    showMessage(suspended ? "ユーザーを利用停止にしました。" : "利用停止を解除しました。");
+    await Promise.all([loadAdminDashboard(), loadProducts()]);
+  }catch(error){
+    setAdminMessage(error.message, "error");
+  }
+}
 
 function setSellerLegalMessage(message, type = ""){
   const target = document.getElementById("sellerLegalMessage");
@@ -2639,6 +2899,7 @@ document.addEventListener("keydown", event => {
     closeSellerEditModal();
     closeSellerLegalModal();
     closePublicSellerInfoModal();
+    closeAdminModal();
   }
 });
 
@@ -2664,6 +2925,7 @@ document.addEventListener("keydown", event => {
         checkStripeStatus(false);
         loadPaidPurchases();
         loadSellerLegalProfile();
+        checkAdminStatus();
       }, 0);
     }
   });
@@ -2677,7 +2939,8 @@ document.addEventListener("keydown", event => {
 
     await Promise.all([
       loadPaidPurchases(),
-      loadSellerLegalProfile()
+      loadSellerLegalProfile(),
+      checkAdminStatus()
     ]);
   }
 
