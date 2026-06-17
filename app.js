@@ -21,6 +21,10 @@ let checkoutStarting = false;
 let downloadStarting = false;
 let paidProductIds = new Set();
 let paidPurchases = [];
+let sellerProducts = [];
+let sellerPurchaseRows = [];
+let editingSellerProductId = null;
+let sellerManagementLoading = false;
 const CART_STORAGE_KEY = "sheetIchibaCartV1";
 const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
 let cartProductIds = [];
@@ -381,20 +385,27 @@ function refreshAuthUI(session){
   const button = document.getElementById("authButton");
   const label = document.getElementById("authUserLabel");
   const purchasedButton = document.getElementById("purchasedHeaderButton");
+  const sellerManagerButton = document.getElementById("sellerManagerHeaderButton");
 
   if(session?.user){
     label.textContent = session.user.email || "ログイン中";
     label.hidden = false;
     button.textContent = "ログアウト";
     purchasedButton.hidden = false;
+    sellerManagerButton.hidden = false;
   }else{
     label.textContent = "";
     label.hidden = true;
     button.textContent = "ログイン";
     purchasedButton.hidden = true;
+    sellerManagerButton.hidden = true;
     paidProductIds = new Set();
     paidPurchases = [];
+    sellerProducts = [];
+    sellerPurchaseRows = [];
     updatePurchasedUI();
+    closeSellerManagerModal();
+    closeSellerEditModal();
   }
 
   setStripeUI();
@@ -1300,6 +1311,459 @@ async function handleStripeRedirect(){
   }
 }
 
+
+function setSellerEditMessage(message, type = ""){
+  const target = document.getElementById("sellerEditMessage");
+  if(!target) return;
+  target.textContent = message;
+  target.className = `auth-message ${type}`.trim();
+}
+
+function setSellerEditState(isSaving, text = "変更を保存しています…"){
+  const button = document.getElementById("sellerEditSubmitButton");
+  const progress = document.getElementById("sellerEditProgress");
+  const progressText = document.getElementById("sellerEditProgressText");
+
+  if(button){
+    button.disabled = isSaving;
+    button.textContent = isSaving ? "保存処理中…" : "変更を保存する";
+  }
+
+  if(progress) progress.hidden = !isSaving;
+  if(progressText) progressText.textContent = text;
+}
+
+function getSellerProductStats(productId){
+  const rows = sellerPurchaseRows.filter(row => row.product_id === productId);
+  const paidRows = rows.filter(row => row.status === "paid");
+
+  return {
+    purchaseRecordCount: rows.length,
+    paidCount: paidRows.length,
+    gross: paidRows.reduce((sum, row) => sum + Number(row.amount_jpy || 0), 0),
+    fees: paidRows.reduce((sum, row) => sum + Number(row.platform_fee_jpy || 0), 0)
+  };
+}
+
+function updateSellerStats(){
+  const paidRows = sellerPurchaseRows.filter(row => row.status === "paid");
+  const gross = paidRows.reduce((sum, row) => sum + Number(row.amount_jpy || 0), 0);
+  const fees = paidRows.reduce((sum, row) => sum + Number(row.platform_fee_jpy || 0), 0);
+  const net = Math.max(0, gross - fees);
+
+  document.getElementById("sellerStatProducts").textContent = String(sellerProducts.length);
+  document.getElementById("sellerStatSales").textContent = String(paidRows.length);
+  document.getElementById("sellerStatGross").textContent = formatPrice(gross);
+  document.getElementById("sellerStatFees").textContent = formatPrice(fees);
+  document.getElementById("sellerStatNet").textContent = formatPrice(net);
+}
+
+function renderSellerManagement(){
+  const container = document.getElementById("sellerManagerItems");
+  if(!container) return;
+
+  updateSellerStats();
+
+  if(sellerManagementLoading){
+    container.innerHTML = '<div class="seller-manager-loading">出品商品を読み込んでいます…</div>';
+    return;
+  }
+
+  if(sellerProducts.length === 0){
+    container.innerHTML = `
+      <div class="seller-manager-empty">
+        <strong>出品中の商品はまだありません。</strong>
+        <span>便利なExcelを登録すると、ここで管理できます。</span>
+        <button class="btn btn-primary" type="button" onclick="openNewProductFromSellerManager()">最初の商品を出品する</button>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = sellerProducts.map(product => {
+    const stats = getSellerProductStats(product.id);
+    const imageUrl = getPreviewUrl(product.preview_image_path);
+    const preview = imageUrl
+      ? `<img class="seller-manager-image" src="${escapeHtml(imageUrl)}" alt="">`
+      : `<div class="seller-manager-placeholder">Excel</div>`;
+    const isPublished = product.status === "published";
+    const deleteBlocked = stats.purchaseRecordCount > 0;
+
+    return `
+      <article class="seller-manager-item">
+        ${preview}
+        <div class="seller-manager-copy">
+          <div class="seller-manager-title-row">
+            <span class="seller-status-badge ${isPublished ? "published" : "draft"}">${isPublished ? "公開中" : "公開停止"}</span>
+            <span class="seller-manager-category">${escapeHtml(product.category || "その他")}</span>
+          </div>
+          <h3>${escapeHtml(product.title)}</h3>
+          <div class="seller-manager-meta">
+            <span>価格：${formatPrice(product.price_jpy)}</span>
+            <span>販売：${stats.paidCount}件</span>
+            <span>売上：${formatPrice(stats.gross)}</span>
+          </div>
+        </div>
+        <div class="seller-manager-actions">
+          <button class="seller-action-button edit" type="button" onclick="openSellerEditModal('${escapeHtml(product.id)}')">編集</button>
+          <button class="seller-action-button toggle" type="button" onclick="toggleSellerProductStatus('${escapeHtml(product.id)}')">${isPublished ? "公開停止" : "再公開"}</button>
+          <button class="seller-action-button delete ${deleteBlocked ? "blocked" : ""}" type="button" onclick="deleteSellerProduct('${escapeHtml(product.id)}')">削除</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+async function loadSellerManagement(){
+  if(!currentSession?.user){
+    sellerProducts = [];
+    sellerPurchaseRows = [];
+    renderSellerManagement();
+    return;
+  }
+
+  sellerManagementLoading = true;
+  renderSellerManagement();
+
+  const userId = currentSession.user.id;
+
+  const [productsResult, purchasesResult] = await Promise.all([
+    supabaseClient
+      .from("products")
+      .select("id, seller_id, title, description, category, price_jpy, preview_image_path, file_path, status, created_at, updated_at")
+      .eq("seller_id", userId)
+      .order("created_at", { ascending: false }),
+    supabaseClient
+      .from("purchases")
+      .select("id, product_id, amount_jpy, platform_fee_jpy, status, created_at, paid_at")
+      .eq("seller_id", userId)
+      .order("created_at", { ascending: false })
+  ]);
+
+  sellerManagementLoading = false;
+
+  if(productsResult.error){
+    console.error("Seller products load error:", productsResult.error);
+    sellerProducts = [];
+    sellerPurchaseRows = [];
+    document.getElementById("sellerManagerItems").innerHTML = `
+      <div class="seller-manager-empty error">
+        <strong>出品商品を読み込めませんでした。</strong>
+        <span>${escapeHtml(productsResult.error.message)}</span>
+      </div>
+    `;
+    return;
+  }
+
+  if(purchasesResult.error){
+    console.error("Seller purchases load error:", purchasesResult.error);
+    sellerPurchaseRows = [];
+    showMessage("売上データを読み込めませんでした。", 5000);
+  }else{
+    sellerPurchaseRows = purchasesResult.data || [];
+  }
+
+  sellerProducts = productsResult.data || [];
+  renderSellerManagement();
+}
+
+async function openSellerManagerModal(){
+  if(!currentSession?.user){
+    showMessage("出品管理を見るにはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  const modal = document.getElementById("sellerManagerModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  await loadSellerManagement();
+}
+
+function closeSellerManagerModal(){
+  const modal = document.getElementById("sellerManagerModal");
+  if(!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+function openNewProductFromSellerManager(){
+  closeSellerManagerModal();
+  openProductModal();
+}
+
+function updateSellerEditSelectedFiles(){
+  const preview = document.getElementById("sellerEditProductPreview").files[0];
+  const excel = document.getElementById("sellerEditProductFile").files[0];
+  const box = document.getElementById("sellerEditSelectedFiles");
+
+  if(!preview && !excel){
+    box.hidden = true;
+    box.textContent = "";
+    return;
+  }
+
+  const lines = [];
+  if(preview) lines.push(`新しい画像：${preview.name}`);
+  if(excel) lines.push(`新しいExcel：${excel.name}`);
+  box.textContent = lines.join(" ／ ");
+  box.hidden = false;
+}
+
+function validateOptionalSellerFiles(previewFile, excelFile){
+  const allowedImages = ["image/jpeg", "image/png", "image/webp"];
+
+  if(previewFile){
+    if(!allowedImages.includes(previewFile.type)){
+      throw new Error("商品画像はJPEG・PNG・WebPのみ使えます。");
+    }
+    if(previewFile.size > 5 * 1024 * 1024){
+      throw new Error("商品画像は5MB以下にしてください。");
+    }
+  }
+
+  if(excelFile){
+    if(!excelFile.name.toLowerCase().endsWith(".xlsx")){
+      throw new Error("販売できるExcel形式は.xlsxのみです。");
+    }
+    if(excelFile.size > 10 * 1024 * 1024){
+      throw new Error("Excelファイルは10MB以下にしてください。");
+    }
+  }
+}
+
+function openSellerEditModal(productId){
+  const product = sellerProducts.find(item => item.id === productId);
+
+  if(!product){
+    showMessage("編集する商品が見つかりませんでした。");
+    return;
+  }
+
+  editingSellerProductId = productId;
+  closeSellerManagerModal();
+
+  document.getElementById("sellerEditProductTitle").value = product.title || "";
+  document.getElementById("sellerEditProductCategory").value = product.category || "その他";
+  document.getElementById("sellerEditProductPrice").value = String(product.price_jpy ?? 0);
+  document.getElementById("sellerEditProductStatus").value = product.status === "published" ? "published" : "draft";
+  document.getElementById("sellerEditProductDescription").value = product.description || "";
+  document.getElementById("sellerEditProductPreview").value = "";
+  document.getElementById("sellerEditProductFile").value = "";
+  updateSellerEditSelectedFiles();
+  setSellerEditMessage("");
+
+  const modal = document.getElementById("sellerEditModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  setTimeout(() => document.getElementById("sellerEditProductTitle").focus(), 50);
+}
+
+function closeSellerEditModal(){
+  const modal = document.getElementById("sellerEditModal");
+  if(!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+  editingSellerProductId = null;
+  setSellerEditMessage("");
+  setSellerEditState(false);
+}
+
+async function handleSellerEditSubmit(event){
+  event.preventDefault();
+
+  if(!currentSession?.user || !editingSellerProductId){
+    closeSellerEditModal();
+    openAuthModal("login");
+    return;
+  }
+
+  const product = sellerProducts.find(item => item.id === editingSellerProductId);
+
+  if(!product){
+    setSellerEditMessage("編集する商品が見つかりません。", "error");
+    return;
+  }
+
+  const title = document.getElementById("sellerEditProductTitle").value.trim();
+  const category = document.getElementById("sellerEditProductCategory").value;
+  const price = Number(document.getElementById("sellerEditProductPrice").value);
+  const status = document.getElementById("sellerEditProductStatus").value;
+  const description = document.getElementById("sellerEditProductDescription").value.trim();
+  const previewFile = document.getElementById("sellerEditProductPreview").files[0];
+  const excelFile = document.getElementById("sellerEditProductFile").files[0];
+
+  let newPreviewPath = "";
+  let newExcelPath = "";
+
+  try{
+    validateOptionalSellerFiles(previewFile, excelFile);
+
+    if(!title || title.length > 100) throw new Error("商品名は1〜100文字で入力してください。");
+    if(!category) throw new Error("カテゴリを選択してください。");
+    if(!Number.isInteger(price) || price < 0 || price > 1000000){
+      throw new Error("価格は0〜1,000,000円の整数で入力してください。");
+    }
+    if(!description) throw new Error("商品説明を入力してください。");
+    if(!["published", "draft"].includes(status)) throw new Error("公開状態が正しくありません。");
+
+    const userId = currentSession.user.id;
+    const productId = product.id;
+    const stamp = Date.now();
+    const updateData = {
+      title,
+      category,
+      price_jpy: price,
+      status,
+      description,
+      updated_at: new Date().toISOString()
+    };
+
+    setSellerEditState(true, "変更内容を確認しています…");
+
+    if(previewFile){
+      const imageExtension = previewFile.name.split(".").pop().toLowerCase().replace("jpeg", "jpg");
+      newPreviewPath = `${userId}/${productId}/preview-${stamp}.${imageExtension}`;
+
+      setSellerEditState(true, "新しい商品画像をアップロードしています…");
+      const { error: previewError } = await supabaseClient.storage
+        .from("product-previews")
+        .upload(newPreviewPath, previewFile, {
+          cacheControl: "3600",
+          contentType: previewFile.type,
+          upsert: false
+        });
+
+      if(previewError) throw new Error(`商品画像を差し替えできませんでした：${previewError.message}`);
+      updateData.preview_image_path = newPreviewPath;
+    }
+
+    if(excelFile){
+      newExcelPath = `${userId}/${productId}/product-${stamp}.xlsx`;
+
+      setSellerEditState(true, "新しいExcelを安全な保存場所へアップロードしています…");
+      const { error: excelError } = await supabaseClient.storage
+        .from("product-files")
+        .upload(newExcelPath, excelFile, {
+          cacheControl: "3600",
+          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          upsert: false
+        });
+
+      if(excelError) throw new Error(`Excelを差し替えできませんでした：${excelError.message}`);
+      updateData.file_path = newExcelPath;
+    }
+
+    setSellerEditState(true, "商品情報を更新しています…");
+
+    const { error: updateError } = await supabaseClient
+      .from("products")
+      .update(updateData)
+      .eq("id", productId)
+      .eq("seller_id", userId);
+
+    if(updateError) throw new Error(`商品情報を更新できませんでした：${updateError.message}`);
+
+    const cleanupTasks = [];
+    if(newPreviewPath && product.preview_image_path && product.preview_image_path !== newPreviewPath){
+      cleanupTasks.push(
+        supabaseClient.storage.from("product-previews").remove([product.preview_image_path])
+      );
+    }
+    if(newExcelPath && product.file_path && product.file_path !== newExcelPath){
+      cleanupTasks.push(
+        supabaseClient.storage.from("product-files").remove([product.file_path])
+      );
+    }
+    await Promise.allSettled(cleanupTasks);
+
+    setSellerEditMessage("変更を保存しました！", "success");
+    await loadProducts();
+
+    setTimeout(async () => {
+      closeSellerEditModal();
+      await openSellerManagerModal();
+      showMessage("商品を更新しました！");
+    }, 600);
+  }catch(error){
+    console.error("Seller product edit error:", error);
+    await cleanupUploadedFiles(newPreviewPath, newExcelPath);
+    setSellerEditMessage(error.message || "商品を更新できませんでした。", "error");
+  }finally{
+    setSellerEditState(false);
+  }
+}
+
+async function toggleSellerProductStatus(productId){
+  if(!currentSession?.user) return;
+
+  const product = sellerProducts.find(item => item.id === productId);
+  if(!product) return;
+
+  const nextStatus = product.status === "published" ? "draft" : "published";
+  const actionLabel = nextStatus === "published" ? "再公開" : "公開停止";
+
+  const { error } = await supabaseClient
+    .from("products")
+    .update({
+      status: nextStatus,
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", productId)
+    .eq("seller_id", currentSession.user.id);
+
+  if(error){
+    console.error("Product status update error:", error);
+    showMessage(`${actionLabel}できませんでした：${error.message}`, 6000);
+    return;
+  }
+
+  await Promise.all([loadSellerManagement(), loadProducts()]);
+  showMessage(`商品を${actionLabel}しました！`);
+}
+
+async function deleteSellerProduct(productId){
+  if(!currentSession?.user) return;
+
+  const product = sellerProducts.find(item => item.id === productId);
+  if(!product) return;
+
+  const stats = getSellerProductStats(productId);
+
+  if(stats.purchaseRecordCount > 0){
+    showMessage("購入・決済記録がある商品は削除できません。公開停止を使ってください。", 7000);
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `「${product.title}」を完全に削除しますか？\nこの操作は元に戻せません。`
+  );
+
+  if(!confirmed) return;
+
+  const { error } = await supabaseClient
+    .from("products")
+    .delete()
+    .eq("id", productId)
+    .eq("seller_id", currentSession.user.id);
+
+  if(error){
+    console.error("Product delete error:", error);
+    showMessage(`削除できませんでした：${error.message}`, 7000);
+    return;
+  }
+
+  await cleanupUploadedFiles(product.preview_image_path, product.file_path);
+  await Promise.all([loadSellerManagement(), loadProducts()]);
+  showMessage("商品を削除しました。");
+}
+
 function openProductModal(){
   if(!currentSession?.user){
     showMessage("出品するにはログインが必要です。");
@@ -1484,6 +1948,9 @@ document.getElementById("authForm").addEventListener("submit", handleAuthSubmit)
 document.getElementById("productForm").addEventListener("submit", handleProductSubmit);
 document.getElementById("productPreview").addEventListener("change", updateSelectedFiles);
 document.getElementById("productFile").addEventListener("change", updateSelectedFiles);
+document.getElementById("sellerEditForm").addEventListener("submit", handleSellerEditSubmit);
+document.getElementById("sellerEditProductPreview").addEventListener("change", updateSellerEditSelectedFiles);
+document.getElementById("sellerEditProductFile").addEventListener("change", updateSellerEditSelectedFiles);
 
 document.addEventListener("keydown", event => {
   if(event.key === "Escape"){
@@ -1492,6 +1959,8 @@ document.addEventListener("keydown", event => {
     closeProductDetail();
     closeCartModal();
     closePurchasedModal();
+    closeSellerManagerModal();
+    closeSellerEditModal();
   }
 });
 

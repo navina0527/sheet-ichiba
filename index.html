@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=11" />
 </head>
 <body>
   <header class="site-header">
@@ -29,6 +29,10 @@
           <span class="purchased-icon">✓</span>
           <span class="purchased-label-text">購入済み</span>
           <span id="purchasedCountBadge" class="purchased-count-badge">0</span>
+        </button>
+        <button id="sellerManagerHeaderButton" class="seller-manager-header-button" type="button" onclick="openSellerManagerModal()" aria-label="出品管理を開く" hidden>
+          <span class="seller-manager-icon">管</span>
+          <span class="seller-manager-label">出品管理</span>
         </button>
         <button id="stripeConnectButton" class="btn btn-stripe-connect" type="button" onclick="startStripeOnboarding()" hidden>
           売上受取設定
@@ -180,6 +184,115 @@
     </div>
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
+
+  <div id="sellerManagerModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeSellerManagerModal()"></div>
+    <div class="modal-card seller-manager-modal-card" role="dialog" aria-modal="true" aria-labelledby="sellerManagerTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeSellerManagerModal()">×</button>
+
+      <div class="seller-manager-heading">
+        <div>
+          <p class="eyebrow">SELLER DASHBOARD</p>
+          <h2 id="sellerManagerTitle" class="auth-title">出品管理</h2>
+          <p class="auth-description">商品の編集、公開停止、売上確認ができます。</p>
+        </div>
+        <button class="btn btn-primary" type="button" onclick="openNewProductFromSellerManager()">新しく出品</button>
+      </div>
+
+      <div class="seller-stats-grid">
+        <div class="seller-stat-card"><span>出品数</span><strong id="sellerStatProducts">0</strong></div>
+        <div class="seller-stat-card"><span>販売数</span><strong id="sellerStatSales">0</strong></div>
+        <div class="seller-stat-card"><span>売上総額</span><strong id="sellerStatGross">¥0</strong></div>
+        <div class="seller-stat-card accent"><span>受取見込</span><strong id="sellerStatNet">¥0</strong></div>
+      </div>
+
+      <div class="seller-fee-note">
+        <span>販売手数料</span>
+        <strong id="sellerStatFees">¥0</strong>
+      </div>
+
+      <div id="sellerManagerItems" class="seller-manager-items">
+        <div class="seller-manager-loading">出品商品を読み込んでいます…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sellerEditModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeSellerEditModal()"></div>
+    <div class="modal-card seller-edit-modal-card" role="dialog" aria-modal="true" aria-labelledby="sellerEditTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeSellerEditModal()">×</button>
+
+      <p class="eyebrow">EDIT PRODUCT</p>
+      <h2 id="sellerEditTitle" class="auth-title">商品を編集</h2>
+      <p class="auth-description">画像やExcelを選ばなければ、現在のファイルをそのまま使用します。</p>
+
+      <form id="sellerEditForm" class="product-form">
+        <div class="form-grid-two">
+          <label>
+            商品名
+            <input id="sellerEditProductTitle" type="text" maxlength="100" required>
+          </label>
+
+          <label>
+            カテゴリ
+            <select id="sellerEditProductCategory" required>
+              <option value="売上・経理">売上・経理</option>
+              <option value="在庫・発注">在庫・発注</option>
+              <option value="人事・勤務">人事・勤務</option>
+              <option value="運送・物流">運送・物流</option>
+              <option value="暮らし">暮らし</option>
+              <option value="その他">その他</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-grid-two">
+          <label>
+            販売価格（税込・円）
+            <input id="sellerEditProductPrice" type="number" min="0" max="1000000" step="1" required>
+          </label>
+
+          <label>
+            公開状態
+            <select id="sellerEditProductStatus" required>
+              <option value="published">公開中</option>
+              <option value="draft">公開停止</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          商品説明
+          <textarea id="sellerEditProductDescription" maxlength="2000" required rows="6"></textarea>
+        </label>
+
+        <div class="form-grid-two">
+          <label class="file-field">
+            商品画像を差し替える
+            <input id="sellerEditProductPreview" type="file" accept="image/jpeg,image/png,image/webp">
+            <span>未選択なら現在の画像を使用</span>
+          </label>
+
+          <label class="file-field">
+            Excelを差し替える
+            <input id="sellerEditProductFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <span>未選択なら現在のExcelを使用</span>
+          </label>
+        </div>
+
+        <div id="sellerEditSelectedFiles" class="selected-files" hidden></div>
+
+        <button id="sellerEditSubmitButton" class="btn btn-primary auth-submit" type="submit">変更を保存する</button>
+
+        <div id="sellerEditProgress" class="upload-progress" hidden>
+          <span class="spinner"></span>
+          <span id="sellerEditProgressText">変更を保存しています…</span>
+        </div>
+
+        <p id="sellerEditMessage" class="auth-message" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
 
   <div id="purchasedModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closePurchasedModal()"></div>
@@ -370,7 +483,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=10"></script>
-  <script src="app.js?v=10"></script>
+  <script src="config.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
