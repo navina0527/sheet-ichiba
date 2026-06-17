@@ -1597,3 +1597,57 @@ html{scroll-behavior:smooth}
 .admin-action-button.safe{border-color:#a9cfb6;color:#17663a;background:#f4fff7}
 .admin-empty,.admin-loading{padding:42px;text-align:center;color:var(--muted)}
 @media(max-width:900px){.admin-summary{grid-template-columns:repeat(2,1fr)}.admin-header-button span:last-child{display:none}}
+
+
+/* Admin MFA */
+.admin-mfa-card{
+  width:min(100%,480px);
+}
+.admin-mfa-qr-wrap{
+  display:flex;
+  justify-content:center;
+  margin:18px 0 12px;
+}
+.admin-mfa-qr{
+  width:220px;
+  max-width:70vw;
+  aspect-ratio:1;
+  border:10px solid #fff;
+  border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.10);
+  background:#fff;
+}
+.admin-mfa-help{
+  margin:0 0 12px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.7;
+  text-align:center;
+}
+.admin-mfa-secret-details{
+  margin-bottom:16px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#f8faf8;
+}
+.admin-mfa-secret-details summary{
+  cursor:pointer;
+  font-size:13px;
+  font-weight:700;
+}
+.admin-mfa-secret-details code{
+  display:block;
+  margin-top:10px;
+  padding:9px;
+  overflow-wrap:anywhere;
+  border-radius:8px;
+  background:#fff;
+  font-size:12px;
+}
+.admin-mfa-code{
+  text-align:center;
+  font-size:24px;
+  letter-spacing:.3em;
+  font-weight:800;
+}

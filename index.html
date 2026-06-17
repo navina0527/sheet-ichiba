@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body>
   <header class="site-header">
@@ -198,6 +198,38 @@
     </div>
     <div class="copyright">© 2026 Sheet Ichiba</div>
   </footer>
+
+  <div id="adminMfaModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card admin-mfa-card" role="dialog" aria-modal="true" aria-labelledby="adminMfaTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeAdminMfaModal()">×</button>
+
+      <p class="eyebrow">ADMIN SECURITY</p>
+      <h2 id="adminMfaTitle" class="auth-title">管理者の二段階認証</h2>
+      <p id="adminMfaDescription" class="auth-description">
+        管理者画面を開くには、認証アプリの確認コードが必要です。
+      </p>
+
+      <div id="adminMfaEnrollArea" hidden>
+        <div class="admin-mfa-qr-wrap">
+          <img id="adminMfaQr" class="admin-mfa-qr" alt="二段階認証用QRコード">
+        </div>
+        <p class="admin-mfa-help">Google Authenticator、Microsoft AuthenticatorなどでQRコードを読み取ってください。</p>
+        <details class="admin-mfa-secret-details">
+          <summary>QRコードを読み取れない場合</summary>
+          <code id="adminMfaSecret"></code>
+        </details>
+      </div>
+
+      <form id="adminMfaForm" onsubmit="submitAdminMfa(event)">
+        <label class="field-label" for="adminMfaCode">認証アプリの6桁コード</label>
+        <input id="adminMfaCode" class="field-input admin-mfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="123456" required>
+        <button id="adminMfaSubmitButton" class="btn btn-primary auth-submit" type="submit">確認する</button>
+      </form>
+
+      <p id="adminMfaMessage" class="auth-message" aria-live="polite"></p>
+    </div>
+  </div>
 
   <div id="adminModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeAdminModal()"></div>
@@ -702,7 +734,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=16"></script>
-  <script src="app.js?v=16"></script>
+  <script src="config.js?v=14"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

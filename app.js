@@ -32,6 +32,10 @@ let isPlatformAdmin = false;
 let adminDashboardData = null;
 let adminLoading = false;
 let adminActiveTab = "products";
+let adminMfaMode = "challenge";
+let adminMfaFactorId = "";
+let adminMfaPendingEnrollmentId = "";
+let adminMfaAfterSuccess = null;
 const CART_STORAGE_KEY = "sheetIchibaCartV1";
 const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
 let cartProductIds = [];
@@ -448,6 +452,7 @@ function refreshAuthUI(session){
     closeSellerLegalModal();
     closePublicSellerInfoModal();
     closeAdminModal();
+    closeAdminMfaModal();
   }
 
   updateSellerLegalHeader();
@@ -459,6 +464,148 @@ function refreshAuthUI(session){
 
 
 
+
+
+function setAdminMfaMessage(message, type = ""){
+  const target = document.getElementById("adminMfaMessage");
+  if(!target) return;
+  target.textContent = message;
+  target.className = `auth-message ${type}`.trim();
+}
+
+function openAdminMfaModal(){
+  const modal = document.getElementById("adminMfaModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  setAdminMfaMessage("");
+  const code = document.getElementById("adminMfaCode");
+  if(code){ code.value = ""; setTimeout(() => code.focus(), 100); }
+}
+
+async function closeAdminMfaModal(){
+  const modal = document.getElementById("adminMfaModal");
+  if(!modal) return;
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  adminMfaAfterSuccess = null;
+  syncBodyModalState();
+}
+
+async function getVerifiedTotpFactor(){
+  const { data, error } = await supabaseClient.auth.mfa.listFactors();
+  if(error) throw error;
+  return (data?.totp || []).find(factor => factor.status === "verified") || null;
+}
+
+async function beginAdminMfaEnrollment(){
+  adminMfaMode = "enroll";
+  adminMfaFactorId = "";
+  adminMfaPendingEnrollmentId = "";
+
+  document.getElementById("adminMfaTitle").textContent = "管理者の二段階認証を設定";
+  document.getElementById("adminMfaDescription").textContent = "認証アプリでQRコードを読み取り、表示された6桁コードを入力してください。";
+  document.getElementById("adminMfaEnrollArea").hidden = false;
+  document.getElementById("adminMfaSubmitButton").textContent = "二段階認証を有効にする";
+  openAdminMfaModal();
+  setAdminMfaMessage("QRコードを準備しています…");
+
+  const { data, error } = await supabaseClient.auth.mfa.enroll({
+    factorType: "totp",
+    friendlyName: "シート市場 管理者"
+  });
+
+  if(error){
+    setAdminMfaMessage(error.message, "error");
+    return;
+  }
+
+  adminMfaFactorId = data.id;
+  adminMfaPendingEnrollmentId = data.id;
+  document.getElementById("adminMfaQr").src = data.totp.qr_code;
+  document.getElementById("adminMfaSecret").textContent = data.totp.secret || "";
+  setAdminMfaMessage("");
+}
+
+async function beginAdminMfaChallenge(factor){
+  adminMfaMode = "challenge";
+  adminMfaFactorId = factor.id;
+  adminMfaPendingEnrollmentId = "";
+
+  document.getElementById("adminMfaTitle").textContent = "管理者の二段階認証";
+  document.getElementById("adminMfaDescription").textContent = "認証アプリに表示されている6桁コードを入力してください。";
+  document.getElementById("adminMfaEnrollArea").hidden = true;
+  document.getElementById("adminMfaSubmitButton").textContent = "確認して管理者画面を開く";
+  openAdminMfaModal();
+}
+
+async function requireAdminMfa(onSuccess){
+  adminMfaAfterSuccess = onSuccess;
+
+  const { data: aal, error: aalError } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+  if(aalError) throw aalError;
+
+  if(aal?.currentLevel === "aal2"){
+    const callback = adminMfaAfterSuccess;
+    adminMfaAfterSuccess = null;
+    await callback?.();
+    return;
+  }
+
+  const factor = await getVerifiedTotpFactor();
+  if(factor){
+    await beginAdminMfaChallenge(factor);
+  }else{
+    await beginAdminMfaEnrollment();
+  }
+}
+
+async function submitAdminMfa(event){
+  event.preventDefault();
+  if(!adminMfaFactorId) return;
+
+  const codeInput = document.getElementById("adminMfaCode");
+  const button = document.getElementById("adminMfaSubmitButton");
+  const code = codeInput.value.replace(/\D/g, "").slice(0, 6);
+
+  if(code.length !== 6){
+    setAdminMfaMessage("6桁の認証コードを入力してください。", "error");
+    return;
+  }
+
+  button.disabled = true;
+  setAdminMfaMessage("認証しています…");
+
+  try{
+    const { data: challenge, error: challengeError } = await supabaseClient.auth.mfa.challenge({
+      factorId: adminMfaFactorId
+    });
+    if(challengeError) throw challengeError;
+
+    const { error: verifyError } = await supabaseClient.auth.mfa.verify({
+      factorId: adminMfaFactorId,
+      challengeId: challenge.id,
+      code
+    });
+    if(verifyError) throw verifyError;
+
+    adminMfaPendingEnrollmentId = "";
+    setAdminMfaMessage("二段階認証が完了しました。", "success");
+    await supabaseClient.auth.refreshSession();
+
+    const callback = adminMfaAfterSuccess;
+    adminMfaAfterSuccess = null;
+    setTimeout(async () => {
+      await closeAdminMfaModal();
+      await callback?.();
+    }, 400);
+  }catch(error){
+    setAdminMfaMessage("認証コードが正しくありません。新しいコードで試してください。", "error");
+    codeInput.select();
+  }finally{
+    button.disabled = false;
+  }
+}
 
 function setAdminMessage(message, type = ""){
   const target = document.getElementById("adminMessage");
@@ -520,6 +667,15 @@ async function openAdminModal(){
     }
   }
 
+  try{
+    await requireAdminMfa(openAdminDashboardAfterMfa);
+  }catch(error){
+    console.error("Admin MFA error:", error);
+    showMessage(`二段階認証を開始できませんでした：${error.message}`, 7000);
+  }
+}
+
+async function openAdminDashboardAfterMfa(){
   const modal = document.getElementById("adminModal");
   modal.classList.add("open");
   modal.setAttribute("aria-hidden", "false");
@@ -2900,6 +3056,7 @@ document.addEventListener("keydown", event => {
     closeSellerLegalModal();
     closePublicSellerInfoModal();
     closeAdminModal();
+    closeAdminMfaModal();
   }
 });
 
