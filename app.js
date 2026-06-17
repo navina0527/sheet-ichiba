@@ -394,13 +394,13 @@ async function handleAuthSubmit(event){
         try{
           const contextBody = await error.context?.json();
 
-          if(contextBody?.error){
-            message = contextBody.error;
-          }else if(
+          if(
             Number.isInteger(contextBody?.remainingAttempts)
           ){
             message =
               `メールアドレスかパスワードが違います。残り${contextBody.remainingAttempts}回です。`;
+          }else if(contextBody?.error){
+            message = contextBody.error;
           }
         }catch(_ignored){}
 
