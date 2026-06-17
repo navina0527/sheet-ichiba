@@ -211,6 +211,15 @@ function setAuthMode(mode){
     "autocomplete",
     isLogin ? "current-password" : "new-password"
   );
+
+  const legalWrap = document.getElementById("authLegalConsentWrap");
+  const legalCheckbox = document.getElementById("authLegalConsent");
+  if(legalWrap && legalCheckbox){
+    legalWrap.hidden = isLogin;
+    legalCheckbox.required = !isLogin;
+    if(isLogin) legalCheckbox.checked = false;
+  }
+
   setAuthMessage("");
 }
 
@@ -327,6 +336,14 @@ async function handleAuthSubmit(event){
   const email = document.getElementById("authEmail").value.trim();
   const password = document.getElementById("authPassword").value;
   const submitButton = document.getElementById("authSubmitButton");
+
+  if(
+    authMode === "signup" &&
+    !document.getElementById("authLegalConsent")?.checked
+  ){
+    setAuthMessage("利用規約とプライバシーポリシーへの同意が必要です。", "error");
+    return;
+  }
 
   submitButton.disabled = true;
   submitButton.textContent = "処理中…";
@@ -464,6 +481,8 @@ function renderCart(){
   const totalElement = document.getElementById("cartTotal");
   const checkoutButton = document.getElementById("cartCheckoutButton");
   const clearButton = document.getElementById("cartClearButton");
+  const legalConsentWrap = document.getElementById("cartLegalConsentWrap");
+  const legalConsent = document.getElementById("cartLegalConsent");
 
   if(!container || !totalElement || !checkoutButton || !clearButton) return;
 
@@ -479,6 +498,8 @@ function renderCart(){
     totalElement.textContent = "¥0";
     checkoutButton.disabled = true;
     clearButton.hidden = true;
+    if(legalConsentWrap) legalConsentWrap.hidden = true;
+    if(legalConsent) legalConsent.checked = false;
     return;
   }
 
@@ -511,6 +532,7 @@ function renderCart(){
   totalElement.textContent = formatPrice(total);
   checkoutButton.disabled = false;
   clearButton.hidden = false;
+  if(legalConsentWrap) legalConsentWrap.hidden = false;
 }
 
 function openCartModal(){
@@ -631,6 +653,11 @@ async function startCartCheckout(){
     closeCartModal();
     showMessage("まとめて購入するにはログインが必要です。");
     openAuthModal("login");
+    return;
+  }
+
+  if(!document.getElementById("cartLegalConsent")?.checked){
+    showMessage("利用規約と返金ポリシーを確認して、同意欄にチェックしてください。", 6500);
     return;
   }
 
@@ -966,6 +993,8 @@ function openProductDetail(productId){
   const buyButton = document.getElementById("detailBuyButton");
   const cartButton = document.getElementById("detailCartButton");
   const note = document.getElementById("detailPurchaseNote");
+  const legalConsentWrap = document.getElementById("detailLegalConsentWrap");
+  const legalConsent = document.getElementById("detailLegalConsent");
   const isOwnProduct = currentSession?.user?.id === product.seller_id;
   const isFree = Number(product.price_jpy) === 0;
   const isPurchased = paidProductIds.has(product.id);
@@ -1002,6 +1031,12 @@ function openProductDetail(productId){
   }else{
     buyButton.textContent = "今すぐ購入";
     note.textContent = "今すぐ購入、またはカートでまとめ買いできます。";
+  }
+
+  if(legalConsentWrap && legalConsent){
+    const purchasable = !isPurchased && !isOwnProduct && !isFree;
+    legalConsentWrap.hidden = !purchasable;
+    legalConsent.checked = false;
   }
 
   const modal = document.getElementById("productDetailModal");
@@ -1051,6 +1086,11 @@ async function startCheckout(){
 
   if(currentSession.user.id === selectedProduct.seller_id){
     showMessage("自分の商品は購入できません。");
+    return;
+  }
+
+  if(!document.getElementById("detailLegalConsent")?.checked){
+    showMessage("利用規約と返金ポリシーを確認して、同意欄にチェックしてください。", 6500);
     return;
   }
 

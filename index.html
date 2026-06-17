@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=12" />
+  <link rel="stylesheet" href="styles.css?v=13" />
 </head>
 <body>
   <header class="site-header">
@@ -180,10 +180,11 @@
         <p>便利なExcel、売れる。買える。</p>
       </div>
       <div class="footer-links">
-        <a href="#">利用規約</a>
-        <a href="#">プライバシーポリシー</a>
-        <a href="#">特定商取引法に基づく表記</a>
-        <a href="#">お問い合わせ</a>
+        <a href="legal.html#terms">利用規約</a>
+        <a href="legal.html#privacy">プライバシーポリシー</a>
+        <a href="legal.html#tokushoho">特定商取引法に基づく表記</a>
+        <a href="legal.html#refund">返金ポリシー</a>
+        <a href="mailto:navi.na0527@gmail.com">お問い合わせ</a>
       </div>
     </div>
     <div class="copyright">© 2026 Sheet Ichiba</div>
@@ -383,6 +384,11 @@
 
       <div id="cartItems" class="cart-items"></div>
 
+      <label id="cartLegalConsentWrap" class="legal-consent cart-legal-consent">
+        <input id="cartLegalConsent" type="checkbox">
+        <span><a href="legal.html#terms" target="_blank" rel="noopener">利用規約</a>と<a href="legal.html#refund" target="_blank" rel="noopener">返金ポリシー</a>を確認し、同意します。</span>
+      </label>
+
       <div class="cart-summary">
         <div>
           <span>合計</span>
@@ -431,8 +437,13 @@
           </div>
         </div>
 
+        <label id="detailLegalConsentWrap" class="legal-consent detail-legal-consent">
+          <input id="detailLegalConsent" type="checkbox">
+          <span><a href="legal.html#terms" target="_blank" rel="noopener">利用規約</a>と<a href="legal.html#refund" target="_blank" rel="noopener">返金ポリシー</a>を確認し、同意します。</span>
+        </label>
+
         <p id="detailPurchaseNote" class="detail-purchase-note">
-          決済はStripeのテスト画面で行います。
+          決済はStripeの安全な決済画面で行います。
         </p>
       </div>
     </div>
@@ -535,6 +546,10 @@
           パスワード
           <input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="8文字以上">
         </label>
+        <label id="authLegalConsentWrap" class="legal-consent auth-legal-consent" hidden>
+          <input id="authLegalConsent" type="checkbox">
+          <span><a href="legal.html#terms" target="_blank" rel="noopener">利用規約</a>と<a href="legal.html#privacy" target="_blank" rel="noopener">プライバシーポリシー</a>に同意します。</span>
+        </label>
         <button id="authSubmitButton" class="btn btn-primary auth-submit" type="submit">ログイン</button>
       </form>
 
@@ -546,7 +561,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=12"></script>
-  <script src="app.js?v=12"></script>
+  <script src="config.js?v=13"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
