@@ -1,29 +1,13 @@
-# シート市場 購入ボタン対応版 v6
+# シート市場 購入済み表示修正版 v8
 
-商品カードを開くと詳細画面が表示され、購入者がStripe Checkoutへ進める版です。
+購入済み商品の判定をブラウザから直接DBへ問い合わせる方式から、
+Edge Function `download-purchase`を通してサーバー側で判定する方式へ変更しました。
 
-## GitHubへの上書き
+## 必要な作業
 
-1. ZIPを解凍
-2. GitHubの `sheet-ichiba` を開く
-3. `Add file` → `Upload files`
-4. 解凍した5ファイルを全部ドラッグ
-5. `Commit changes`
+1. Supabaseの `download-purchase` をv2コードへ差し替えて再デプロイ
+2. このサイトZIPをGitHubへ上書き
+3. 購入者アカウントで再読み込み
 
-## 追加した機能
-
-- 商品詳細画面
-- 商品価格・説明・出品者の表示
-- 「購入する」ボタン
-- `create-checkout` Edge Functionの呼び出し
-- Stripe Checkout URLへの移動
-- キャンセル時の案内
-- 自分の商品を購入できない制御
-
-## まだ未実装
-
-- Stripe Webhookによる決済完了確定
-- 購入済み商品のダウンロード
-- 購入履歴
-
-購入完了後のファイル提供は、ブラウザの戻り先だけで判断せず、次にStripe Webhookを接続して確定します。
+購入済みの商品には「購入済み」と表示され、商品を開くと
+「Excelをダウンロード」ボタンが表示されます。

@@ -18,6 +18,8 @@ let currentSearchTerm = "";
 let stripeStatusChecking = false;
 let selectedProduct = null;
 let checkoutStarting = false;
+let downloadStarting = false;
+let paidProductIds = new Set();
 
 function showMessage(message, duration = 3200){
   const toast = document.getElementById("toast");
@@ -89,7 +91,9 @@ function renderProducts(){
           <p>${escapeHtml(description)}</p>
           <div class="product-meta">
             <strong class="${Number(product.price_jpy) === 0 ? "price-free" : ""}">${formatPrice(product.price_jpy)}</strong>
-            <span>新着</span>
+            <span class="${paidProductIds.has(product.id) ? "purchased-label" : ""}">
+              ${paidProductIds.has(product.id) ? "購入済み" : "新着"}
+            </span>
           </div>
           <span class="seller-name">出品者：${escapeHtml(sellerName)}</span>
         </div>
@@ -368,12 +372,121 @@ function refreshAuthUI(session){
     label.textContent = "";
     label.hidden = true;
     button.textContent = "ログイン";
+    paidProductIds = new Set();
   }
 
   setStripeUI();
 }
 
 
+
+
+async function loadPaidPurchases(){
+  if(!currentSession?.user){
+    paidProductIds = new Set();
+
+    if(allProducts.length > 0){
+      renderProducts();
+    }
+
+    return [];
+  }
+
+  try{
+    const data = await invokeDownloadPurchase("", "list");
+    const productIds = Array.isArray(data?.productIds) ? data.productIds : [];
+
+    paidProductIds = new Set(productIds);
+
+    if(allProducts.length > 0){
+      renderProducts();
+    }
+
+    return productIds;
+  }catch(error){
+    console.error("Paid purchases load error:", error);
+    return [];
+  }
+}
+
+async function invokeDownloadPurchase(productId = "", action = "download"){
+  const { data, error } = await supabaseClient.functions.invoke("download-purchase", {
+    body: { productId, action }
+  });
+
+  if(error){
+    let message = error.message || "ダウンロード処理を呼び出せませんでした。";
+    try{
+      const contextBody = await error.context?.json();
+      if(contextBody?.error) message = contextBody.error;
+    }catch(_ignored){}
+    throw new Error(message);
+  }
+
+  if(data?.error){
+    throw new Error(data.error);
+  }
+
+  return data;
+}
+
+async function startDownload(){
+  if(!selectedProduct || downloadStarting) return;
+
+  if(!currentSession?.user){
+    closeProductDetail();
+    showMessage("ダウンロードするにはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  downloadStarting = true;
+
+  const button = document.getElementById("detailBuyButton");
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "ダウンロード準備中…";
+
+  try{
+    const data = await invokeDownloadPurchase(selectedProduct.id, "download");
+
+    if(!data?.url){
+      throw new Error("ダウンロードURLを取得できませんでした。");
+    }
+
+    const link = document.createElement("a");
+    link.href = data.url;
+    link.download = data.fileName || "";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    showMessage("Excelのダウンロードを開始しました！");
+    button.textContent = "もう一度ダウンロード";
+  }catch(error){
+    console.error("Download error:", error);
+    showMessage(`ダウンロードできませんでした：${error.message}`, 7000);
+    button.textContent = originalText;
+  }finally{
+    button.disabled = false;
+    downloadStarting = false;
+  }
+}
+
+async function waitForPaidPurchase(){
+  for(let attempt = 0; attempt < 8; attempt += 1){
+    const purchases = await loadPaidPurchases();
+
+    if(purchases.length > 0){
+      return true;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 1500));
+  }
+
+  return false;
+}
 
 function findProductById(productId){
   return allProducts.find(product => product.id === productId) || null;
@@ -407,11 +520,17 @@ function openProductDetail(productId){
   const note = document.getElementById("detailPurchaseNote");
   const isOwnProduct = currentSession?.user?.id === product.seller_id;
   const isFree = Number(product.price_jpy) === 0;
+  const isPurchased = paidProductIds.has(product.id);
 
   buyButton.classList.toggle("own-product", Boolean(isOwnProduct));
+  buyButton.classList.toggle("download-product", Boolean(isPurchased));
   buyButton.disabled = false;
+  buyButton.setAttribute("onclick", isPurchased ? "startDownload()" : "startCheckout()");
 
-  if(isOwnProduct){
+  if(isPurchased){
+    buyButton.textContent = "Excelをダウンロード";
+    note.textContent = "購入済みの商品です。何度でもダウンロードできます。";
+  }else if(isOwnProduct){
     buyButton.textContent = "自分の商品です";
     buyButton.disabled = true;
     note.textContent = "自分で出品した商品は購入できません。";
@@ -492,6 +611,18 @@ async function startCheckout(){
     window.location.assign(data.url);
   }catch(error){
     console.error("Checkout start error:", error);
+
+    if(String(error.message || "").includes("すでに購入済み")){
+      await loadPaidPurchases();
+
+      if(selectedProduct && paidProductIds.has(selectedProduct.id)){
+        openProductDetail(selectedProduct.id);
+        showMessage("この商品は購入済みです。ダウンロードできます！");
+        checkoutStarting = false;
+        return;
+      }
+    }
+
     showMessage(`購入画面を開けませんでした：${error.message}`, 7000);
     button.disabled = false;
     button.textContent = "購入する";
@@ -499,7 +630,7 @@ async function startCheckout(){
   }
 }
 
-function handleCheckoutReturn(){
+async function handleCheckoutReturn(){
   const params = new URLSearchParams(window.location.search);
   const checkoutResult = params.get("checkout");
 
@@ -514,10 +645,21 @@ function handleCheckoutReturn(){
   }
 
   if(checkoutResult === "success"){
-    showMessage(
-      "テスト決済から戻りました。購入確定とダウンロード処理を次に接続します。",
-      7000
-    );
+    showMessage("支払い完了を確認しています…", 5000);
+
+    const confirmed = await waitForPaidPurchase();
+
+    if(confirmed){
+      showMessage(
+        "購入が完了しました！商品を開いてExcelをダウンロードできます。",
+        7000
+      );
+    }else{
+      showMessage(
+        "決済は完了しています。反映に少し時間がかかっているため、数秒後に再読み込みしてください。",
+        8000
+      );
+    }
   }
 }
 
@@ -905,11 +1047,12 @@ document.addEventListener("keydown", event => {
     refreshAuthUI(session);
 
     if(event === "SIGNED_IN" && session?.user){
-      setTimeout(() => checkStripeStatus(false), 0);
+      setTimeout(() => {
+        checkStripeStatus(false);
+        loadPaidPurchases();
+      }, 0);
     }
   });
-
-  handleCheckoutReturn();
 
   if(currentSession?.user){
     await handleStripeRedirect();
@@ -917,7 +1060,10 @@ document.addEventListener("keydown", event => {
     if(!new URLSearchParams(window.location.search).get("stripe")){
       await checkStripeStatus(false);
     }
+
+    await loadPaidPurchases();
   }
 
   await loadProducts();
+  await handleCheckoutReturn();
 })();
