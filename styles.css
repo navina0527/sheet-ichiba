@@ -1381,3 +1381,148 @@ html{scroll-behavior:smooth}
   .legal-table dt{padding-bottom:7px}
   .legal-table dd{padding-top:7px}
 }
+
+
+/* Seller legal profile */
+.seller-legal-header-button{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:9px 11px;
+  background:#fff;
+  color:var(--ink);
+  cursor:pointer;
+  font-weight:700;
+}
+.seller-legal-header-button:hover{
+  background:#fff8ea;
+  border-color:#e5c581;
+}
+.seller-legal-icon{
+  width:21px;
+  height:21px;
+  display:grid;
+  place-items:center;
+  border-radius:7px;
+  background:#fff1cf;
+  color:#7b5710;
+  font-size:11px;
+  font-weight:900;
+}
+.seller-legal-label{
+  font-size:12px;
+}
+.seller-legal-status-badge{
+  padding:2px 7px;
+  border-radius:999px;
+  background:#fff0f0;
+  color:#a43b3b;
+  font-size:9px;
+  font-weight:900;
+}
+.seller-legal-status-badge.complete{
+  background:var(--green-light);
+  color:var(--green-dark);
+}
+.seller-legal-modal-card{
+  width:min(100%,760px);
+  max-height:calc(100vh - 36px);
+  overflow-y:auto;
+}
+.seller-public-contact-fields{
+  display:grid;
+  gap:16px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fafcfb;
+}
+.seller-public-contact-fields[hidden]{
+  display:none;
+}
+.seller-legal-confirmation{
+  margin-top:4px;
+}
+.seller-legal-loading{
+  padding:34px 10px;
+  text-align:center;
+  color:var(--muted);
+}
+.public-seller-info-card{
+  width:min(100%,620px);
+}
+.public-seller-info-content{
+  display:grid;
+  gap:12px;
+  margin-top:20px;
+}
+.public-seller-info-row{
+  display:grid;
+  grid-template-columns:160px 1fr;
+  gap:18px;
+  padding:13px 0;
+  border-bottom:1px solid var(--line);
+}
+.public-seller-info-row:last-child{
+  border-bottom:0;
+}
+.public-seller-info-row span{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:700;
+}
+.public-seller-info-row strong,
+.public-seller-info-row a{
+  color:var(--ink);
+  font-size:14px;
+  overflow-wrap:anywhere;
+}
+.public-seller-info-note{
+  margin-top:8px;
+  padding:14px;
+  border-radius:12px;
+  background:#fff8ea;
+  color:#6e531d;
+  font-size:12px;
+  line-height:1.7;
+}
+.detail-seller-row{
+  align-items:center;
+}
+.detail-seller-row > div{
+  display:grid;
+  gap:2px;
+}
+.seller-info-link{
+  border:0;
+  background:transparent;
+  color:var(--green-dark);
+  cursor:pointer;
+  font-size:12px;
+  font-weight:800;
+  text-decoration:underline;
+  text-underline-offset:3px;
+}
+.seller-info-link:hover{
+  opacity:.75;
+}
+
+@media (max-width:1100px){
+  .seller-legal-label,
+  .seller-legal-status-badge{
+    display:none;
+  }
+}
+@media (max-width:620px){
+  .public-seller-info-row{
+    grid-template-columns:1fr;
+    gap:5px;
+  }
+  .detail-seller-row{
+    align-items:flex-start;
+    gap:10px;
+  }
+}

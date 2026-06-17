@@ -26,6 +26,8 @@ let sellerPurchaseRows = [];
 let editingSellerProductId = null;
 let sellerManagementLoading = false;
 let sellerSalesLoading = false;
+let sellerLegalProfile = null;
+let sellerLegalLoading = false;
 const CART_STORAGE_KEY = "sheetIchibaCartV1";
 const PENDING_CART_KEY = "sheetIchibaPendingCartV1";
 let cartProductIds = [];
@@ -405,6 +407,7 @@ function refreshAuthUI(session){
   const purchasedButton = document.getElementById("purchasedHeaderButton");
   const sellerManagerButton = document.getElementById("sellerManagerHeaderButton");
   const sellerSalesButton = document.getElementById("sellerSalesHeaderButton");
+  const sellerLegalButton = document.getElementById("sellerLegalHeaderButton");
 
   if(session?.user){
     label.textContent = session.user.email || "ログイン中";
@@ -413,6 +416,7 @@ function refreshAuthUI(session){
     purchasedButton.hidden = false;
     sellerManagerButton.hidden = false;
     sellerSalesButton.hidden = false;
+    sellerLegalButton.hidden = false;
   }else{
     label.textContent = "";
     label.hidden = true;
@@ -420,23 +424,359 @@ function refreshAuthUI(session){
     purchasedButton.hidden = true;
     sellerManagerButton.hidden = true;
     sellerSalesButton.hidden = true;
+    sellerLegalButton.hidden = true;
     paidProductIds = new Set();
     paidPurchases = [];
     sellerProducts = [];
     sellerPurchaseRows = [];
+    sellerLegalProfile = null;
+    sellerLegalLoading = false;
+    updateSellerLegalHeader();
     updatePurchasedUI();
     closeSellerManagerModal();
     closeSellerEditModal();
     closeSellerSalesModal();
-    closeSellerSalesModal();
+    closeSellerLegalModal();
+    closePublicSellerInfoModal();
   }
 
+  updateSellerLegalHeader();
   setStripeUI();
 }
 
 
 
 
+
+
+function setSellerLegalMessage(message, type = ""){
+  const target = document.getElementById("sellerLegalMessage");
+  if(!target) return;
+  target.textContent = message;
+  target.className = `auth-message ${type}`.trim();
+}
+
+function setSellerLegalSaving(isSaving){
+  const button = document.getElementById("sellerLegalSubmitButton");
+  const progress = document.getElementById("sellerLegalProgress");
+  if(!button || !progress) return;
+
+  button.disabled = isSaving;
+  button.textContent = isSaving ? "保存中…" : "販売者情報を保存";
+  progress.hidden = !isSaving;
+}
+
+function updateSellerLegalHeader(){
+  const button = document.getElementById("sellerLegalHeaderButton");
+  const badge = document.getElementById("sellerLegalStatusBadge");
+
+  if(!button || !badge) return;
+
+  button.hidden = !currentSession?.user;
+
+  if(!currentSession?.user){
+    badge.textContent = "未設定";
+    badge.classList.remove("complete");
+    return;
+  }
+
+  if(sellerLegalLoading){
+    badge.textContent = "確認中";
+    badge.classList.remove("complete");
+    return;
+  }
+
+  if(sellerLegalProfile){
+    badge.textContent = "設定済";
+    badge.classList.add("complete");
+  }else{
+    badge.textContent = "未設定";
+    badge.classList.remove("complete");
+  }
+}
+
+async function loadSellerLegalProfile(){
+  if(!currentSession?.user){
+    sellerLegalProfile = null;
+    sellerLegalLoading = false;
+    updateSellerLegalHeader();
+    return null;
+  }
+
+  sellerLegalLoading = true;
+  updateSellerLegalHeader();
+
+  const { data, error } = await supabaseClient
+    .from("seller_legal_profiles")
+    .select("seller_id, legal_name, trade_name, contact_email, support_hours, disclosure_method, postal_code, address, phone, created_at, updated_at")
+    .eq("seller_id", currentSession.user.id)
+    .maybeSingle();
+
+  sellerLegalLoading = false;
+
+  if(error){
+    console.error("Seller legal profile load error:", error);
+    sellerLegalProfile = null;
+    updateSellerLegalHeader();
+    return null;
+  }
+
+  sellerLegalProfile = data || null;
+  updateSellerLegalHeader();
+  return sellerLegalProfile;
+}
+
+function toggleSellerDisclosureFields(){
+  const method = document.getElementById("sellerDisclosureMethod")?.value || "request";
+  const fields = document.getElementById("sellerPublicContactFields");
+  const phone = document.getElementById("sellerPhone");
+  const address = document.getElementById("sellerAddress");
+
+  if(!fields || !phone || !address) return;
+
+  const isPublic = method === "public";
+  fields.hidden = !isPublic;
+  phone.required = isPublic;
+  address.required = isPublic;
+
+  if(!isPublic){
+    phone.setCustomValidity("");
+    address.setCustomValidity("");
+  }
+}
+
+async function openSellerLegalModal(){
+  if(!currentSession?.user){
+    showMessage("販売者情報を登録するにはログインが必要です。");
+    openAuthModal("login");
+    return;
+  }
+
+  await loadSellerLegalProfile();
+
+  const profile = sellerLegalProfile || {};
+  document.getElementById("sellerLegalName").value = profile.legal_name || "";
+  document.getElementById("sellerTradeName").value = profile.trade_name || "";
+  document.getElementById("sellerContactEmail").value =
+    profile.contact_email || currentSession.user.email || "";
+  document.getElementById("sellerSupportHours").value = profile.support_hours || "";
+  document.getElementById("sellerDisclosureMethod").value =
+    profile.disclosure_method === "public" ? "public" : "request";
+  document.getElementById("sellerPostalCode").value = profile.postal_code || "";
+  document.getElementById("sellerAddress").value = profile.address || "";
+  document.getElementById("sellerPhone").value = profile.phone || "";
+  document.getElementById("sellerLegalAccuracy").checked = false;
+
+  toggleSellerDisclosureFields();
+  setSellerLegalMessage("");
+  setSellerLegalSaving(false);
+
+  const modal = document.getElementById("sellerLegalModal");
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  setTimeout(() => document.getElementById("sellerLegalName").focus(), 50);
+}
+
+function closeSellerLegalModal(){
+  const modal = document.getElementById("sellerLegalModal");
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  setSellerLegalMessage("");
+  setSellerLegalSaving(false);
+  syncBodyModalState();
+}
+
+async function handleSellerLegalSubmit(event){
+  event.preventDefault();
+
+  if(!currentSession?.user){
+    closeSellerLegalModal();
+    openAuthModal("login");
+    return;
+  }
+
+  const legalName = document.getElementById("sellerLegalName").value.trim();
+  const tradeName = document.getElementById("sellerTradeName").value.trim();
+  const contactEmail = document.getElementById("sellerContactEmail").value.trim();
+  const supportHours = document.getElementById("sellerSupportHours").value.trim();
+  const disclosureMethod = document.getElementById("sellerDisclosureMethod").value;
+  const postalCode = document.getElementById("sellerPostalCode").value.trim();
+  const address = document.getElementById("sellerAddress").value.trim();
+  const phone = document.getElementById("sellerPhone").value.trim();
+  const accuracyChecked = document.getElementById("sellerLegalAccuracy").checked;
+
+  try{
+    if(!legalName) throw new Error("氏名・法人名を入力してください。");
+    if(!contactEmail || !contactEmail.includes("@")){
+      throw new Error("問い合わせメールを正しく入力してください。");
+    }
+    if(!supportHours) throw new Error("問い合わせ対応時間を入力してください。");
+    if(!["request", "public"].includes(disclosureMethod)){
+      throw new Error("住所・電話番号の表示方法を選択してください。");
+    }
+    if(disclosureMethod === "public" && (!address || !phone)){
+      throw new Error("サイト掲載を選ぶ場合は、所在地と電話番号が必要です。");
+    }
+    if(!accuracyChecked){
+      throw new Error("登録内容の確認欄にチェックしてください。");
+    }
+
+    setSellerLegalSaving(true);
+    setSellerLegalMessage("");
+
+    const payload = {
+      seller_id: currentSession.user.id,
+      legal_name: legalName,
+      trade_name: tradeName || null,
+      contact_email: contactEmail,
+      support_hours: supportHours,
+      disclosure_method: disclosureMethod,
+      postal_code: disclosureMethod === "public" ? (postalCode || null) : null,
+      address: disclosureMethod === "public" ? address : null,
+      phone: disclosureMethod === "public" ? phone : null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabaseClient
+      .from("seller_legal_profiles")
+      .upsert(payload, { onConflict: "seller_id" })
+      .select()
+      .single();
+
+    if(error){
+      throw new Error(`販売者情報を保存できませんでした：${error.message}`);
+    }
+
+    sellerLegalProfile = data;
+    updateSellerLegalHeader();
+    setSellerLegalMessage("販売者情報を保存しました！", "success");
+
+    setTimeout(() => {
+      closeSellerLegalModal();
+      showMessage("販売者情報を設定しました！");
+    }, 700);
+  }catch(error){
+    console.error("Seller legal profile save error:", error);
+    setSellerLegalMessage(error.message || "販売者情報を保存できませんでした。", "error");
+  }finally{
+    setSellerLegalSaving(false);
+  }
+}
+
+async function ensureSellerLegalProfile(){
+  if(!currentSession?.user){
+    openAuthModal("login");
+    return false;
+  }
+
+  if(!sellerLegalProfile){
+    await loadSellerLegalProfile();
+  }
+
+  if(sellerLegalProfile){
+    return true;
+  }
+
+  showMessage("出品する前に販売者情報を登録してください。", 6000);
+  await openSellerLegalModal();
+  return false;
+}
+
+function syncBodyModalState(){
+  const hasOpenModal = Boolean(document.querySelector(".modal.open"));
+  document.body.classList.toggle("modal-open", hasOpenModal);
+}
+
+async function openPublicSellerInfo(sellerId){
+  if(!sellerId){
+    showMessage("販売者情報を取得できませんでした。");
+    return;
+  }
+
+  const modal = document.getElementById("publicSellerInfoModal");
+  const content = document.getElementById("publicSellerInfoContent");
+
+  content.innerHTML = '<div class="seller-legal-loading">販売者情報を読み込んでいます…</div>';
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  const { data, error } = await supabaseClient
+    .from("seller_legal_profiles")
+    .select("seller_id, legal_name, trade_name, contact_email, support_hours, disclosure_method, postal_code, address, phone")
+    .eq("seller_id", sellerId)
+    .maybeSingle();
+
+  if(error){
+    console.error("Public seller info load error:", error);
+    content.innerHTML = '<div class="cart-empty">販売者情報を読み込めませんでした。</div>';
+    return;
+  }
+
+  if(!data){
+    content.innerHTML = '<div class="cart-empty">販売者情報はまだ登録されていません。</div>';
+    return;
+  }
+
+  const sellerDisplay = data.trade_name
+    ? `${escapeHtml(data.legal_name)}（${escapeHtml(data.trade_name)}）`
+    : escapeHtml(data.legal_name);
+
+  const addressPhoneHtml = data.disclosure_method === "public"
+    ? `
+      <div class="public-seller-info-row">
+        <span>所在地</span>
+        <strong>${escapeHtml([data.postal_code, data.address].filter(Boolean).join(" "))}</strong>
+      </div>
+      <div class="public-seller-info-row">
+        <span>電話番号</span>
+        <strong>${escapeHtml(data.phone || "")}</strong>
+      </div>
+    `
+    : `
+      <div class="public-seller-info-row">
+        <span>所在地・電話番号</span>
+        <strong>請求があった場合、購入申込みの判断に先立って確認できるよう遅滞なく開示します。</strong>
+      </div>
+    `;
+
+  content.innerHTML = `
+    <div class="public-seller-info-row">
+      <span>販売者</span>
+      <strong>${sellerDisplay}</strong>
+    </div>
+    <div class="public-seller-info-row">
+      <span>問い合わせ</span>
+      <a href="mailto:${escapeHtml(data.contact_email)}">${escapeHtml(data.contact_email)}</a>
+    </div>
+    <div class="public-seller-info-row">
+      <span>対応時間</span>
+      <strong>${escapeHtml(data.support_hours)}</strong>
+    </div>
+    ${addressPhoneHtml}
+    <div class="public-seller-info-note">
+      商品内容やファイル不具合については、上記の販売者窓口へお問い合わせください。
+    </div>
+  `;
+}
+
+function openSelectedProductSellerInfo(){
+  if(!selectedProduct){
+    showMessage("商品情報を取得できませんでした。");
+    return;
+  }
+
+  openPublicSellerInfo(selectedProduct.seller_id);
+}
+
+function closePublicSellerInfoModal(){
+  const modal = document.getElementById("publicSellerInfoModal");
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  syncBodyModalState();
+}
 
 function loadCartFromStorage(){
   try{
@@ -1925,6 +2265,13 @@ async function handleSellerEditSubmit(event){
     if(!description) throw new Error("商品説明を入力してください。");
     if(!["published", "draft"].includes(status)) throw new Error("公開状態が正しくありません。");
 
+    if(status === "published"){
+      const legalReady = await ensureSellerLegalProfile();
+      if(!legalReady){
+        throw new Error("公開するには販売者情報の登録が必要です。");
+      }
+    }
+
     const userId = currentSession.user.id;
     const productId = product.id;
     const stamp = Date.now();
@@ -2021,6 +2368,11 @@ async function toggleSellerProductStatus(productId){
   const nextStatus = product.status === "published" ? "draft" : "published";
   const actionLabel = nextStatus === "published" ? "再公開" : "公開停止";
 
+  if(nextStatus === "published"){
+    const legalReady = await ensureSellerLegalProfile();
+    if(!legalReady) return;
+  }
+
   const { error } = await supabaseClient
     .from("products")
     .update({
@@ -2076,12 +2428,15 @@ async function deleteSellerProduct(productId){
   showMessage("商品を削除しました。");
 }
 
-function openProductModal(){
+async function openProductModal(){
   if(!currentSession?.user){
     showMessage("出品するにはログインが必要です。");
     openAuthModal("login");
     return;
   }
+
+  const legalReady = await ensureSellerLegalProfile();
+  if(!legalReady) return;
 
   const modal = document.getElementById("productModal");
   modal.classList.add("open");
@@ -2160,6 +2515,9 @@ async function handleProductSubmit(event){
     openAuthModal("login");
     return;
   }
+
+  const legalReady = await ensureSellerLegalProfile();
+  if(!legalReady) return;
 
   const title = document.getElementById("productTitle").value.trim();
   const category = document.getElementById("productCategory").value;
@@ -2263,6 +2621,7 @@ document.getElementById("productFile").addEventListener("change", updateSelected
 document.getElementById("sellerEditForm").addEventListener("submit", handleSellerEditSubmit);
 document.getElementById("sellerEditProductPreview").addEventListener("change", updateSellerEditSelectedFiles);
 document.getElementById("sellerEditProductFile").addEventListener("change", updateSellerEditSelectedFiles);
+document.getElementById("sellerLegalForm").addEventListener("submit", handleSellerLegalSubmit);
 
 document.addEventListener("keydown", event => {
   if(event.key === "Escape"){
@@ -2273,6 +2632,8 @@ document.addEventListener("keydown", event => {
     closePurchasedModal();
     closeSellerManagerModal();
     closeSellerEditModal();
+    closeSellerLegalModal();
+    closePublicSellerInfoModal();
   }
 });
 
@@ -2297,6 +2658,7 @@ document.addEventListener("keydown", event => {
       setTimeout(() => {
         checkStripeStatus(false);
         loadPaidPurchases();
+        loadSellerLegalProfile();
       }, 0);
     }
   });
@@ -2308,7 +2670,10 @@ document.addEventListener("keydown", event => {
       await checkStripeStatus(false);
     }
 
-    await loadPaidPurchases();
+    await Promise.all([
+      loadPaidPurchases(),
+      loadSellerLegalProfile()
+    ]);
   }
 
   await loadProducts();

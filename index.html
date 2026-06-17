@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=13" />
+  <link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body>
   <header class="site-header">
@@ -37,6 +37,11 @@
         <button id="sellerSalesHeaderButton" class="seller-sales-header-button" type="button" onclick="openSellerSalesModal()" aria-label="売上管理を開く" hidden>
           <span class="seller-sales-icon">¥</span>
           <span class="seller-sales-label">売上管理</span>
+        </button>
+        <button id="sellerLegalHeaderButton" class="seller-legal-header-button" type="button" onclick="openSellerLegalModal()" aria-label="販売者情報を開く" hidden>
+          <span class="seller-legal-icon">法</span>
+          <span class="seller-legal-label">販売者情報</span>
+          <span id="sellerLegalStatusBadge" class="seller-legal-status-badge">未設定</span>
         </button>
         <button id="stripeConnectButton" class="btn btn-stripe-connect" type="button" onclick="startStripeOnboarding()" hidden>
           売上受取設定
@@ -249,6 +254,97 @@
     </div>
   </div>
 
+  <div id="sellerLegalModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closeSellerLegalModal()"></div>
+    <div class="modal-card seller-legal-modal-card" role="dialog" aria-modal="true" aria-labelledby="sellerLegalTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closeSellerLegalModal()">×</button>
+
+      <p class="eyebrow">SELLER INFORMATION</p>
+      <h2 id="sellerLegalTitle" class="auth-title">販売者情報</h2>
+      <p class="auth-description">商品を販売する前に、購入者へ表示する販売者情報を登録してください。</p>
+
+      <form id="sellerLegalForm" class="product-form">
+        <div class="form-grid-two">
+          <label>
+            氏名・法人名
+            <input id="sellerLegalName" type="text" maxlength="100" required placeholder="例：大久保 匠">
+          </label>
+
+          <label>
+            屋号・ショップ名（任意）
+            <input id="sellerTradeName" type="text" maxlength="100" placeholder="例：シート市場">
+          </label>
+        </div>
+
+        <div class="form-grid-two">
+          <label>
+            問い合わせメール
+            <input id="sellerContactEmail" type="email" maxlength="254" required placeholder="example@gmail.com">
+          </label>
+
+          <label>
+            問い合わせ対応時間
+            <input id="sellerSupportHours" type="text" maxlength="100" required placeholder="例：平日9:00～16:00">
+          </label>
+        </div>
+
+        <label>
+          住所・電話番号の表示方法
+          <select id="sellerDisclosureMethod" required onchange="toggleSellerDisclosureFields()">
+            <option value="request">請求があった場合に遅滞なく開示</option>
+            <option value="public">サイト上に掲載</option>
+          </select>
+        </label>
+
+        <div id="sellerPublicContactFields" class="seller-public-contact-fields" hidden>
+          <div class="form-grid-two">
+            <label>
+              郵便番号（任意）
+              <input id="sellerPostalCode" type="text" maxlength="20" placeholder="例：444-0000">
+            </label>
+
+            <label>
+              電話番号
+              <input id="sellerPhone" type="tel" maxlength="30" placeholder="例：090-1234-5678">
+            </label>
+          </div>
+
+          <label>
+            所在地
+            <textarea id="sellerAddress" maxlength="300" rows="3" placeholder="都道府県から入力"></textarea>
+          </label>
+        </div>
+
+        <label class="legal-consent seller-legal-confirmation">
+          <input id="sellerLegalAccuracy" type="checkbox" required>
+          <span>登録内容が正確であり、購入者から開示請求があった場合は遅滞なく対応します。</span>
+        </label>
+
+        <button id="sellerLegalSubmitButton" class="btn btn-primary auth-submit" type="submit">販売者情報を保存</button>
+
+        <div id="sellerLegalProgress" class="upload-progress" hidden>
+          <span class="spinner"></span>
+          <span>販売者情報を保存しています…</span>
+        </div>
+
+        <p id="sellerLegalMessage" class="auth-message" aria-live="polite"></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="publicSellerInfoModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" onclick="closePublicSellerInfoModal()"></div>
+    <div class="modal-card public-seller-info-card" role="dialog" aria-modal="true" aria-labelledby="publicSellerInfoTitle">
+      <button class="modal-close" type="button" aria-label="閉じる" onclick="closePublicSellerInfoModal()">×</button>
+
+      <p class="eyebrow">SELLER INFORMATION</p>
+      <h2 id="publicSellerInfoTitle" class="auth-title">販売者情報</h2>
+      <div id="publicSellerInfoContent" class="public-seller-info-content">
+        <div class="seller-legal-loading">販売者情報を読み込んでいます…</div>
+      </div>
+    </div>
+  </div>
+
   <div id="sellerManagerModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" onclick="closeSellerManagerModal()"></div>
     <div class="modal-card seller-manager-modal-card" role="dialog" aria-modal="true" aria-labelledby="sellerManagerTitle">
@@ -417,9 +513,14 @@
         <h2 id="detailTitle" class="detail-title"></h2>
         <p id="detailDescription" class="detail-description"></p>
 
-        <div class="detail-info-row">
-          <span>出品者</span>
-          <strong id="detailSeller"></strong>
+        <div class="detail-info-row detail-seller-row">
+          <div>
+            <span>出品者</span>
+            <strong id="detailSeller"></strong>
+          </div>
+          <button id="detailSellerInfoButton" class="seller-info-link" type="button" onclick="openSelectedProductSellerInfo()">
+            販売者情報を見る
+          </button>
         </div>
 
         <div class="detail-purchase-row">
@@ -561,7 +662,7 @@
   <div id="toast" class="toast"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=13"></script>
-  <script src="app.js?v=13"></script>
+  <script src="config.js?v=14"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
