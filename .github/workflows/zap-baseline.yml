@@ -1,0 +1,22 @@
+name: Monthly Security Scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 1 * *"
+
+permissions:
+  contents: read
+
+jobs:
+  zap-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: "https://navina0527.github.io/sheet-ichiba/"
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: sheet-ichiba-zap-report
